@@ -1,0 +1,126 @@
+<bora-topo />
+
+<main class="pagina-estreita">
+  <header class="cabeca">
+    <h1>Ajustes</h1>
+    <p class="sub">Como você recebe o dinheiro e por onde os convites saem.</p>
+  </header>
+
+  @if (erro()) { <p class="falha">{{ erro() }}</p> }
+
+  <!-- PIX -->
+  <form class="grupo" (ngSubmit)="salvarPix()">
+    <h2 class="grupo-titulo">Receber por PIX</h2>
+    <div class="grupo-caixa">
+      <div class="linha">
+        <label for="chave">Chave PIX</label>
+        <input id="chave" name="chave" [(ngModel)]="pix.pix_chave" placeholder="CPF, e-mail ou celular" autocomplete="off" />
+      </div>
+      <div class="linha">
+        <label for="nome-pix">Nome no banco</label>
+        <input id="nome-pix" name="nome" [(ngModel)]="pix.pix_nome" maxlength="25" placeholder="Como aparece no PIX" />
+      </div>
+      <div class="linha">
+        <label for="cidade">Cidade</label>
+        <input id="cidade" name="cidade" [(ngModel)]="pix.pix_cidade" maxlength="15" placeholder="Brasília" />
+      </div>
+    </div>
+    <p class="grupo-rodape">
+      O convidado recebe um PIX copia e cola com o valor exato e paga direto para você, sem taxa.
+      O nome no banco ajuda o Bora a conferir os comprovantes.
+    </p>
+
+    <div class="grupo-caixa espaco">
+      <div class="linha">
+        <label for="auto" class="rotulo-largo">Confirmar sozinho quando o comprovante conferir</label>
+        <input id="auto" name="auto" type="checkbox" class="interruptor" [(ngModel)]="pix.baixa_automatica" />
+      </div>
+    </div>
+    <p class="grupo-rodape">
+      O Bora lê o comprovante que chega no seu WhatsApp. Ligado, a presença é confirmada quando o valor,
+      a data e o seu nome batem. Desligado, você confirma com um toque no painel do evento.
+    </p>
+
+    <div class="grupo-caixa espaco">
+      <div class="linha">
+        <label for="tel">Celular de contato</label>
+        <input id="tel" name="tel" [(ngModel)]="pix.telefone" inputmode="tel" placeholder="(61) 99999-9999" />
+      </div>
+    </div>
+    <p class="grupo-rodape">Para onde o convidado manda o comprovante se o WhatsApp abaixo não estiver conectado.</p>
+
+    <button type="submit" class="salvar" [disabled]="ocupado()">Salvar</button>
+  </form>
+
+  <!-- WhatsApp -->
+  <section class="grupo">
+    <h2 class="grupo-titulo">WhatsApp</h2>
+    <div class="grupo-caixa">
+      @switch (whatsapp()?.status) {
+        @case ('CONECTADO') {
+          <div class="linha">
+            <span class="rotulo">Conectado</span>
+            <span class="valor numero">{{ formatarNumero(whatsapp()!.numero) || 'Seu número' }}</span>
+          </div>
+          <button type="button" class="linha linha-acao perigo" (click)="desconectarWhatsapp()" [disabled]="ocupado()">Desconectar</button>
+        }
+        @case ('AGUARDANDO_QR') {
+          <div class="linha qr-bloco">
+            @if (whatsapp()!.qr_base64) {
+              <img class="qr" [src]="'data:image/png;base64,' + whatsapp()!.qr_base64" alt="Código para conectar o WhatsApp" />
+            } @else {
+              <p class="sub">Gerando o código…</p>
+            }
+            <ol class="passos-qr">
+              <li>Abra o WhatsApp no celular</li>
+              <li>Toque em Aparelhos conectados, depois em Conectar um aparelho</li>
+              <li>Aponte a câmera para o código</li>
+            </ol>
+          </div>
+          <button type="button" class="linha linha-acao" (click)="desconectarWhatsapp()" [disabled]="ocupado()">Cancelar</button>
+        }
+        @case ('DESCONECTADO') {
+          <div class="linha">
+            <span class="rotulo">Conexão caiu</span>
+            <span class="valor etiqueta-linha"><span class="etiqueta erro">Desconectado</span></span>
+          </div>
+          <button type="button" class="linha linha-acao" (click)="conectarWhatsapp()" [disabled]="ocupado()">Conectar de novo</button>
+        }
+        @case ('NAO_CONFIGURADO') {
+          <button type="button" class="linha linha-acao" (click)="conectarWhatsapp()" [disabled]="ocupado()">Conectar meu WhatsApp</button>
+        }
+        @default {
+          <div class="linha"><span class="sub">Verificando…</span></div>
+        }
+      }
+    </div>
+    <p class="grupo-rodape">
+      Os convites e lembretes saem do seu número, só entre 9h e 20h e com intervalo entre as mensagens,
+      para o WhatsApp não estranhar.
+    </p>
+  </section>
+
+  <!-- Mercado Pago -->
+  <section class="grupo">
+    <h2 class="grupo-titulo">Mercado Pago</h2>
+    <div class="grupo-caixa">
+      @if (mpConectado() === true) {
+        <div class="linha">
+          <span class="rotulo">Conta conectada</span>
+          <span class="valor etiqueta-linha"><span class="etiqueta ok">Ativo</span></span>
+        </div>
+        <button type="button" class="linha linha-acao perigo" (click)="desconectarMp()" [disabled]="ocupado()">Desconectar</button>
+      } @else if (mpConectado() === false) {
+        <button type="button" class="linha linha-acao" (click)="conectarMp()" [disabled]="ocupado()">Conectar Mercado Pago</button>
+      }
+    </div>
+    <p class="grupo-rodape">
+      Opcional. Com a conta conectada, o pagamento é confirmado sozinho, sem comprovante, e uma taxa de cerca
+      de 1% é somada ao valor do convidado. Conectado, ele substitui o PIX direto.
+    </p>
+  </section>
+
+  @if (aviso()) {
+    <p class="toast" role="status">{{ aviso() }}</p>
+  }
+</main>

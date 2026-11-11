@@ -1,0 +1,216 @@
+<bora-topo />
+
+<main class="pagina-estreita">
+  <header class="cabeca">
+    <a [routerLink]="id() ? ['/eventos', id()] : ['/eventos']" class="voltar">{{ id() ? 'Voltar ao evento' : 'Seus eventos' }}</a>
+    <h1>{{ id() ? 'Editar evento' : 'Novo evento' }}</h1>
+  </header>
+
+  @if (carregando()) {
+    <p class="sub">Carregando…</p>
+  } @else {
+    <form (ngSubmit)="salvar()" class="formulario">
+      <!-- Arte: o que mais muda a cara do convite, então vem primeiro -->
+      <section class="arte-bloco">
+        @if (arteUrl()) {
+          <div class="previa">
+            <img [src]="arteUrl()" alt="Arte do convite" />
+            <div class="previa-acoes">
+              <label class="botao botao-secundario trocar">
+                {{ enviandoArte() ? 'Enviando…' : 'Trocar arte' }}
+                <input type="file" accept="image/png,image/jpeg,image/webp" (change)="escolherArte($event)" [disabled]="enviandoArte()" />
+              </label>
+              <button type="button" class="botao-perigo" (click)="removerArte()">Remover</button>
+            </div>
+          </div>
+        } @else {
+          <label class="soltar">
+            <span class="soltar-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 16V5m0 0-4 4m4-4 4 4M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" /></svg>
+            </span>
+            <strong>{{ enviandoArte() ? 'Enviando…' : 'Adicionar arte do convite' }}</strong>
+            <span class="pequeno">Vai junto com o convite no WhatsApp e no topo da página. JPG ou PNG, até 5 MB.</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" (change)="escolherArte($event)" [disabled]="enviandoArte()" />
+          </label>
+        }
+      </section>
+
+      <!-- O evento -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">O evento</h2>
+        <div class="grupo-caixa">
+          <div class="linha linha-empilhada">
+            <label for="nome">Nome</label>
+            <input id="nome" name="nome" class="nome-evento" [(ngModel)]="evento.nome" required maxlength="120" placeholder="Aniversário da Ana" />
+          </div>
+          <div class="linha">
+            <label for="data">Data</label>
+            <input id="data" name="data" type="date" [(ngModel)]="data" required />
+          </div>
+          <div class="linha">
+            <label for="hora">Horário</label>
+            <input id="hora" name="hora" type="time" [(ngModel)]="hora" required />
+          </div>
+          <div class="linha linha-empilhada">
+            <label for="descricao">Recado para os convidados</label>
+            <textarea id="descricao" name="descricao" [(ngModel)]="evento.descricao" rows="3" placeholder="Churrasco e piscina. Traga roupa de banho."></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- Onde -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Onde</h2>
+        <div class="grupo-caixa">
+          <div class="linha">
+            <label for="local">Local</label>
+            <input id="local" name="local" [(ngModel)]="evento.local_nome" placeholder="Chácara Recanto" />
+          </div>
+          <div class="linha">
+            <label for="endereco">Endereço</label>
+            <input id="endereco" name="endereco" [(ngModel)]="evento.endereco" placeholder="Rua, número, cidade" />
+          </div>
+          <div class="linha">
+            <label for="mapa">Link do mapa</label>
+            <input id="mapa" name="mapa" type="url" [(ngModel)]="evento.mapa_url" placeholder="Opcional" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Convidados -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Convidados</h2>
+        <div class="grupo-caixa">
+          <div class="linha">
+            <label for="maxacomp">Acompanhantes por convidado</label>
+            <input id="maxacomp" name="maxacomp" type="number" min="0" max="20" [(ngModel)]="evento.max_acompanhantes" placeholder="Sem limite" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Vaquinha -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Vaquinha</h2>
+        <div class="grupo-caixa">
+          <div class="linha">
+            <label for="contrib" class="rotulo-largo">Os convidados ajudam com dinheiro</label>
+            <input id="contrib" name="contrib" type="checkbox" class="interruptor" [(ngModel)]="evento.tem_contribuicao" />
+          </div>
+
+          @if (evento.tem_contribuicao) {
+            @for (c of colaboracoes(); track $index; let i = $index) {
+              <div class="linha colab">
+                <div class="colab-cabeca">
+                  <input [name]="'col-desc-' + i" class="colab-nome" [(ngModel)]="c.descricao" placeholder="Para que é? Ex.: aluguel" [attr.aria-label]="'Descrição da contribuição ' + (i + 1)" />
+                  <button type="button" class="botao-perigo" (click)="remover(colaboracoes, i)" [attr.aria-label]="'Remover contribuição ' + (i + 1)">Remover</button>
+                </div>
+                <div class="segmentado" role="radiogroup" [attr.aria-label]="'Como dividir a contribuição ' + (i + 1)">
+                  <button type="button" role="radio" [class.ativo]="c.tipo === 'FIXO'" [attr.aria-checked]="c.tipo === 'FIXO'" (click)="c.tipo = 'FIXO'; tocar(colaboracoes)">Valor por pessoa</button>
+                  <button type="button" role="radio" [class.ativo]="c.tipo === 'RATEIO'" [attr.aria-checked]="c.tipo === 'RATEIO'" (click)="c.tipo = 'RATEIO'; tocar(colaboracoes)">Dividir um total</button>
+                </div>
+                @if (c.tipo === 'FIXO') {
+                  <div class="colab-campos">
+                    <label [for]="'col-vpp-' + i">Cada pessoa paga</label>
+                    <span class="real"><span>R$</span>
+                      <input [id]="'col-vpp-' + i" [name]="'col-vpp-' + i" type="number" min="0.01" step="0.01" [(ngModel)]="c.valor_por_pessoa" (ngModelChange)="tocar(colaboracoes)" placeholder="30,00" />
+                    </span>
+                  </div>
+                } @else {
+                  <div class="colab-campos">
+                    <label [for]="'col-meta-' + i">Total a juntar</label>
+                    <span class="real"><span>R$</span>
+                      <input [id]="'col-meta-' + i" [name]="'col-meta-' + i" type="number" min="1" step="0.01" [(ngModel)]="c.meta" (ngModelChange)="tocar(colaboracoes)" placeholder="800,00" />
+                    </span>
+                  </div>
+                  <div class="colab-campos">
+                    <label [for]="'col-pes-' + i">Dividido entre</label>
+                    <span class="real">
+                      <input [id]="'col-pes-' + i" [name]="'col-pes-' + i" type="number" min="1" [(ngModel)]="c.pessoas_estimadas" (ngModelChange)="tocar(colaboracoes)" placeholder="27" />
+                      <span>pessoas</span>
+                    </span>
+                  </div>
+                }
+                <p class="colab-resultado">
+                  @if (valorPorPessoa(c); as v) {
+                    {{ v | currency: 'BRL' }} por pessoa
+                  } @else {
+                    Preencha os valores para ver quanto cada um paga
+                  }
+                </p>
+              </div>
+            }
+            <button type="button" class="linha linha-acao" (click)="adicionarColaboracao()">Adicionar contribuição</button>
+          }
+        </div>
+        @if (evento.tem_contribuicao) {
+          @if (totalPorPessoa() > 0) {
+            <p class="grupo-rodape resumo">
+              Cada convidado paga <strong>{{ totalPorPessoa() | currency: 'BRL' }}</strong>, e cada acompanhante paga o mesmo.
+            </p>
+          } @else {
+            <p class="grupo-rodape">Ex.: sobrou R$ 800 do aluguel? Escolha “Dividir um total” e informe quantas pessoas devem vir.</p>
+          }
+        }
+      </section>
+
+      @if (evento.tem_contribuicao) {
+        <section class="grupo">
+          <h2 class="grupo-titulo">Prazo para pagar</h2>
+          <div class="grupo-caixa">
+            <div class="linha">
+              <label for="prazomanual" class="rotulo-largo">Escolher a data</label>
+              <input id="prazomanual" name="prazomanual" type="checkbox" class="interruptor" [(ngModel)]="evento.prazo_manual" />
+            </div>
+            @if (evento.prazo_manual) {
+              <div class="linha">
+                <label for="prazo">Pagar até</label>
+                <input id="prazo" name="prazo" type="date" [(ngModel)]="evento.prazo_pagamento" />
+              </div>
+            }
+          </div>
+          @if (!evento.prazo_manual) {
+            <p class="grupo-rodape">Automático: o 5º dia útil do mês da festa, ou do mês anterior se ela for antes disso. Quem não pagou recebe um lembrete por mês até lá.</p>
+          }
+        </section>
+      }
+
+      <!-- Atrações -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Atrações</h2>
+        <div class="grupo-caixa">
+          @for (a of atracoes(); track $index; let i = $index) {
+            <div class="linha item">
+              <input [name]="'atr-nome-' + i" class="item-nome" [(ngModel)]="a.nome" placeholder="DJ, banda, karaokê" [attr.aria-label]="'Atração ' + (i + 1)" />
+              <input [name]="'atr-hora-' + i" class="item-hora" type="time" [(ngModel)]="a.horario" [attr.aria-label]="'Horário da atração ' + (i + 1)" />
+              <button type="button" class="remover-x" (click)="remover(atracoes, i)" [attr.aria-label]="'Remover atração ' + (i + 1)">×</button>
+            </div>
+          }
+          <button type="button" class="linha linha-acao" (click)="adicionarAtracao()">Adicionar atração</button>
+        </div>
+      </section>
+
+      <!-- Comida e bebida -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Comida e bebida</h2>
+        <div class="grupo-caixa">
+          @for (item of cardapio(); track $index; let i = $index) {
+            <div class="linha item">
+              <input [name]="'car-nome-' + i" class="item-nome" [(ngModel)]="item.nome" placeholder="Churrasco, cerveja, refrigerante" [attr.aria-label]="'Item ' + (i + 1)" />
+              <button type="button" class="remover-x" (click)="remover(cardapio, i)" [attr.aria-label]="'Remover item ' + (i + 1)">×</button>
+            </div>
+          }
+          <button type="button" class="linha linha-acao" (click)="adicionarItem()">Adicionar item</button>
+        </div>
+      </section>
+
+      <div class="rodape-form">
+        @if (erro()) {
+          <p class="falha">{{ erro() }}</p>
+        }
+        <button type="submit" class="botao-grande botao-cheio" [disabled]="salvando() || enviandoArte()">
+          {{ salvando() ? 'Salvando…' : id() ? 'Salvar alterações' : 'Criar evento' }}
+        </button>
+      </div>
+    </form>
+  }
+</main>

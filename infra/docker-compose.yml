@@ -1,0 +1,80 @@
+# Roda na VM (ex.: Oracle Cloud Always Free):
+#   cd infra && cp .env.example .env  (preencha)  && docker compose up -d --build
+#
+# Serviços:
+#   caddy      → HTTPS automático (Let's Encrypt) na frente da API
+#   api        → FastAPI (convites, webhooks, organizador)
+#   worker     → fila de WhatsApp + jobs agendados
+#   evolution  → WhatsApp não oficial (uma instância por organizador)
+#   evolution-db / evolution-redis → dependências da Evolution
+#
+# O banco da aplicação fica no Supabase (fora daqui).
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMINIO: ${API_DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [api]
+
+  api:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    expose: ["8000"]
+
+  worker:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    command: ["python", "-m", "app.worker"]
+    depends_on: [evolution]
+
+  evolution:
+    # Fixe uma versão testada em produção (ex.: :v2.3.x) em vez de latest.
+    image: evoapicloud/evolution-api:latest
+    restart: unless-stopped
+    expose: ["8080"]
+    # Para rodar localmente (fora do compose), exponha em outra porta para não
+    # conflitar com serviços na 8080:  ports: ["8081:8080"]
+    environment:
+      SERVER_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_SENHA}@evolution-db:5432/evolution
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/1
+      CACHE_LOCAL_ENABLED: "false"
+      CONFIG_SESSION_PHONE_CLIENT: Bora
+      LOG_LEVEL: ERROR,WARN
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on: [evolution-db, evolution-redis]
+
+  evolution-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_SENHA}
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution_db:/var/lib/postgresql/data
+
+  evolution-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - evolution_redis:/data
+
+volumes:
+  caddy_data:
+  evolution_instances:
+  evolution_db:
+  evolution_redis:

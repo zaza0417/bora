@@ -1,0 +1,255 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: var(--fundo-agrupado);
+}
+
+.cabeca {
+  padding: 36px 4px 24px;
+
+  h1 {
+    margin-top: 8px;
+    font-size: clamp(2.2rem, 4vw, 3rem);
+  }
+}
+
+.voltar {
+  font-size: 0.94rem;
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ---------- arte ---------- */
+.soltar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 36px 24px;
+  border-radius: var(--raio-midia);
+  background: var(--superficie);
+  border: 1.5px dashed var(--linha);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--tinta-3);
+  }
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .pequeno {
+    max-width: 34ch;
+  }
+}
+
+.soltar-icone {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--marca);
+  margin-bottom: 6px;
+
+  svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: var(--sobre-marca);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.previa {
+  position: relative;
+  border-radius: var(--raio-midia);
+  overflow: hidden;
+  background: #1d1d1f;
+
+  img {
+    width: 100%;
+    max-height: 420px;
+    object-fit: cover;
+  }
+}
+
+.previa-acoes {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+
+  .botao-secundario,
+  .botao-perigo {
+    background: rgb(255 255 255 / 88%);
+    backdrop-filter: blur(12px);
+    color: #1d1d1f;
+  }
+
+  .botao-perigo {
+    color: #c62828;
+    min-height: 44px;
+    padding: 0 1rem;
+  }
+}
+
+.trocar {
+  position: relative;
+  overflow: hidden;
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+/* ---------- campos ---------- */
+.nome-evento {
+  font-family: var(--fonte-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.rotulo-largo {
+  flex: 1 !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+/* contribuição */
+.colab {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.colab-cabeca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colab-nome {
+  flex: 1;
+  text-align: left;
+  font-weight: 500;
+}
+
+.colab-campos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  label {
+    color: var(--tinta);
+  }
+}
+
+.real {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tinta-2);
+
+  input {
+    width: 7.5em;
+    font-variant-numeric: tabular-nums;
+    color: var(--tinta);
+  }
+}
+
+.colab-resultado {
+  font-family: var(--fonte-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--tinta);
+}
+
+.resumo strong {
+  color: var(--tinta);
+}
+
+/* listas simples */
+.item {
+  gap: 10px;
+}
+
+.item-nome {
+  flex: 1;
+  text-align: left;
+}
+
+.item-hora {
+  flex: none;
+  width: 6.5em;
+  color: var(--tinta-2);
+}
+
+.remover-x {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tinta) 8%, transparent);
+  color: var(--tinta-2);
+  font-size: 1.1rem;
+  line-height: 1;
+
+  &:hover {
+    background: var(--erro-suave);
+    color: var(--erro);
+  }
+}
+
+button.linha-acao {
+  width: 100%;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 400;
+
+  &:hover {
+    background: color-mix(in srgb, var(--tinta) 4%, transparent);
+  }
+}
+
+/* ---------- rodapé ---------- */
+.rodape-form {
+  position: sticky;
+  bottom: 0;
+  padding: 16px 0 calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(to top, var(--fundo-agrupado) 70%, transparent);
+}
+
+.colab .segmentado {
+  align-self: flex-start;
+}

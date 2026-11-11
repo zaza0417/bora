@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Segredos
+.env
+!.env.example
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# SO / IDE
+.DS_Store
+Thumbs.db
+.idea/
+
+.env.local
+
+# Vídeos de demonstração (pesados; ficam só no PC)
+docs/video/*.mp4
+docs/video/*.webm
+
+# Configurações locais do Claude
+.claude/settings.local.json

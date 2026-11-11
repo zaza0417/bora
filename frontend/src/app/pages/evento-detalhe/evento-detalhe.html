@@ -1,0 +1,287 @@
+<bora-topo />
+
+@if (evento(); as ev) {
+  <main class="pagina">
+    <!-- Cabeçalho do evento -->
+    <header class="cabeca">
+      <a routerLink="/eventos" class="voltar">Seus eventos</a>
+      <div class="cabeca-linha">
+        <div>
+          <h1>{{ ev.nome }}</h1>
+          <p class="quando">
+            {{ ev.data_hora | date: "EEEE, d 'de' MMMM 'às' HH:mm" }}@if (ev.local_nome) {, {{ ev.local_nome }} }
+          </p>
+        </div>
+        <div class="acoes">
+          @if (ev.status === 'RASCUNHO' || ev.status === 'ATIVO') {
+            <a class="botao botao-secundario" [routerLink]="['/eventos', ev.id, 'editar']">Editar</a>
+          }
+          @if (ev.status === 'RASCUNHO') {
+            <button (click)="ativar()" [disabled]="ocupado()">Enviar convites</button>
+          }
+        </div>
+      </div>
+      <div class="estado">
+        @switch (ev.status) {
+          @case ('RASCUNHO') { <span class="etiqueta">Rascunho, convites ainda não enviados</span> }
+          @case ('ATIVO') { <span class="etiqueta ok">Convites enviados</span> }
+          @case ('CANCELADO') { <span class="etiqueta erro">Cancelado</span> }
+          @case ('ENCERRADO') { <span class="etiqueta">Já aconteceu</span> }
+        }
+        @if (ev.tem_contribuicao && ev.prazo_pagamento) {
+          <span class="pequeno">Pagamento até {{ ev.prazo_pagamento + 'T12:00' | date: "d 'de' MMMM" }}</span>
+        }
+      </div>
+    </header>
+
+    @if (erro()) { <p class="falha">{{ erro() }}</p> }
+
+    <!-- Números: uma faixa, não um mosaico de cartões -->
+    @if (painel(); as p) {
+      <section class="numeros" aria-label="Resumo">
+        <div class="numero principal">
+          <strong>{{ p.pessoas_confirmadas }}</strong>
+          <span>{{ p.pessoas_confirmadas === 1 ? 'pessoa confirmada' : 'pessoas confirmadas' }}</span>
+        </div>
+        <div class="numero">
+          <strong>{{ contagem('AGUARDANDO_PAGAMENTO') + contagem('CONVIDADO') }}</strong>
+          <span>sem resposta ou pagamento</span>
+        </div>
+        <div class="numero">
+          <strong>{{ contagem('RECUSOU') }}</strong>
+          <span>não vão</span>
+        </div>
+        @if (ev.tem_contribuicao) {
+          <div class="numero">
+            <strong>{{ +p.arrecadado_total | currency: 'BRL' : 'symbol' : '1.0-0' }}</strong>
+            <span>arrecadado</span>
+          </div>
+        }
+      </section>
+
+      @if (p.prazo_vencido_pendentes > 0 || p.mensagens_com_falha > 0) {
+        <div class="alertas">
+          @if (p.prazo_vencido_pendentes > 0) {
+            <p class="alerta">{{ p.prazo_vencido_pendentes }} {{ p.prazo_vencido_pendentes === 1 ? 'pessoa passou' : 'pessoas passaram' }} do prazo sem pagar.</p>
+          }
+          @if (p.mensagens_com_falha > 0) {
+            <p class="alerta">
+              {{ p.mensagens_com_falha }} {{ p.mensagens_com_falha === 1 ? 'mensagem não saiu' : 'mensagens não saíram' }} pelo WhatsApp.
+              <a routerLink="/configuracoes">Ver conexão</a>
+            </p>
+          }
+        </div>
+      }
+    }
+
+    <div class="colunas">
+      <div class="coluna-principal">
+        <!-- Comprovantes para conferir -->
+        @if (comprovantes().length) {
+          <section class="secao">
+            <h2>Comprovantes para conferir</h2>
+            <p class="sub">Chegaram no seu WhatsApp. O Bora leu cada um; confira e confirme.</p>
+            <ul class="comprovantes">
+              @for (r of comprovantes(); track r.convidado_id) {
+                <li>
+                  @if (r.imagem_url) {
+                    <a class="miniatura" [href]="r.imagem_url" target="_blank" rel="noopener">
+                      <img [src]="r.imagem_url" [alt]="'Comprovante de ' + r.nome" />
+                    </a>
+                  } @else {
+                    <div class="miniatura sem-imagem">Imagem no seu WhatsApp</div>
+                  }
+                  <div class="comp-info">
+                    <div class="comp-topo">
+                      <strong>{{ r.nome }}</strong>
+                      @if (r.analise; as a) {
+                        @if (!a.texto_legivel) {
+                          <span class="etiqueta alerta">Não deu para ler</span>
+                        } @else if (a.tudo_confere) {
+                          <span class="etiqueta ok">Tudo confere</span>
+                        } @else {
+                          <span class="etiqueta alerta">Conferir</span>
+                        }
+                      }
+                    </div>
+                    <span class="pequeno">Deve {{ +r.valor_devido | currency: 'BRL' }}, enviado {{ r.recebido_em | date: "d/MM 'às' HH:mm" }}</span>
+
+                    @if (r.analise; as a) {
+                      @if (a.texto_legivel) {
+                        <ul class="checklist">
+                          <li [class.sim]="a.valor_confere">
+                            Valor{{ a.valor_confere ? ' certo' : (a.valores_encontrados.length ? ': lido R$ ' + a.valores_encontrados.join(', R$ ') : ' não encontrado') }}
+                          </li>
+                          <li [class.sim]="a.data_confere">
+                            {{ a.data_confere ? 'Pago depois do convite' : 'Data fora do período' }}
+                          </li>
+                          @if (a.recebedor_confere !== null) {
+                            <li [class.sim]="a.recebedor_confere">{{ a.recebedor_confere ? 'Para você' : 'Recebedor diferente' }}</li>
+                          }
+                          <li [class.sim]="a.convidado_confere" [class.neutro]="!a.convidado_confere">
+                            {{ a.convidado_confere ? 'Pago por ' + r.nome : 'Pago por outra pessoa' }}
+                          </li>
+                          @if (a.repetido) {
+                            <li>Comprovante já usado por outro convidado</li>
+                          }
+                        </ul>
+                      }
+                    }
+
+                    <div class="comp-acoes">
+                      <button (click)="confirmarComprovante(r)" [disabled]="ocupado()">Confirmar presença</button>
+                      <button class="botao-perigo" (click)="recusarComprovante(r)" [disabled]="ocupado()">Descartar</button>
+                    </div>
+                  </div>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        <!-- Convidados -->
+        <section class="secao">
+          <div class="secao-cabeca">
+            <h2>Convidados</h2>
+            <span class="pequeno">{{ total() }} na lista</span>
+          </div>
+
+          @if (ev.status === 'RASCUNHO' || ev.status === 'ATIVO') {
+            <form class="novo" (ngSubmit)="adicionar()">
+              <label class="sr-only" for="nome-conv">Nome</label>
+              <input id="nome-conv" class="campo" name="nome" [(ngModel)]="novoNome" placeholder="Nome" required />
+              <label class="sr-only" for="tel-conv">WhatsApp</label>
+              <input id="tel-conv" class="campo" name="tel" [(ngModel)]="novoTelefone" placeholder="(61) 99999-9999" inputmode="tel" required />
+              <button type="submit" [disabled]="ocupado() || !novoNome.trim() || !novoTelefone.trim()">Adicionar</button>
+            </form>
+            <p class="pequeno nota-convite">
+              {{ ev.status === 'ATIVO' ? 'O convite sai pelo seu WhatsApp assim que você adiciona.' : 'Os convites saem quando você tocar em Enviar convites.' }}
+            </p>
+          }
+
+          @if (total() > 0) {
+            <div class="filtros">
+              <div class="segmentado" role="tablist" aria-label="Filtrar convidados">
+                @for (f of filtros; track f) {
+                  <button type="button" role="tab" [class.ativo]="filtro() === f" [attr.aria-selected]="filtro() === f" (click)="filtro.set(f)">
+                    {{ f === 'TODOS' ? 'Todos' : rotulo[f] }}
+                  </button>
+                }
+              </div>
+              <input class="campo busca" placeholder="Buscar nome ou telefone" [ngModel]="busca()" (ngModelChange)="busca.set($event)" aria-label="Buscar convidado" />
+            </div>
+          }
+
+          @if (total() === 0) {
+            <p class="vazio">Adicione o primeiro convidado com nome e WhatsApp.</p>
+          } @else if (convidadosFiltrados().length === 0) {
+            <p class="vazio">Ninguém nesse filtro.</p>
+          }
+
+          <ul class="convidados">
+            @for (c of convidadosFiltrados(); track c.id) {
+              <li>
+                <span class="avatar" aria-hidden="true">{{ c.nome.charAt(0) }}</span>
+                <div class="conv-info">
+                  <strong>{{ c.nome }}</strong>
+                  <span class="pequeno">
+                    {{ c.telefone_e164 }}@if (c.qtd_acompanhantes) {, mais {{ c.qtd_acompanhantes }} }
+                    @if (c.comprovante_recebido_em && c.status !== 'CONFIRMADO') { <span class="marcador">comprovante enviado</span> }
+                    @if (c.ultima_mensagem_status === 'FALHA') { <span class="marcador erro">WhatsApp falhou</span> }
+                  </span>
+                </div>
+                <span class="etiqueta"
+                  [class.ok]="c.status === 'CONFIRMADO'"
+                  [class.alerta]="c.status === 'AGUARDANDO_PAGAMENTO'"
+                  [class.erro]="c.status === 'RECUSOU'">{{ rotulo[c.status] }}</span>
+                <details class="menu">
+                  <summary aria-label="Ações para {{ c.nome }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+                  </summary>
+                  <div class="menu-lista" (click)="fecharMenu($event)">
+                    <button type="button" (click)="copiarLink(c)">Copiar link do convite</button>
+                    @if (ev.status === 'ATIVO') {
+                      <button type="button" (click)="reenviar(c)" [disabled]="ocupado()">Reenviar convite</button>
+                    }
+                    @if (ev.tem_contribuicao && c.status !== 'CONFIRMADO' && ev.status === 'ATIVO') {
+                      <button type="button" (click)="abrirBaixa(c)">Registrar pagamento</button>
+                    }
+                    @if (c.status !== 'CONFIRMADO' || !ev.tem_contribuicao) {
+                      <button type="button" class="perigo" (click)="remover(c)" [disabled]="ocupado()">Remover da lista</button>
+                    }
+                  </div>
+                </details>
+              </li>
+            }
+          </ul>
+        </section>
+      </div>
+
+      <!-- Lateral: arrecadação -->
+      @if (ev.tem_contribuicao && painel()?.colaboracoes?.length) {
+        <aside class="lateral">
+          <h2>Vaquinha</h2>
+          @for (col of painel()!.colaboracoes; track col.descricao) {
+            <div class="colab">
+              <div class="colab-topo">
+                <span>{{ col.descricao }}</span>
+                <strong>{{ +col.arrecadado | currency: 'BRL' : 'symbol' : '1.0-0' }}</strong>
+              </div>
+              @if (col.meta) {
+                <div class="barra" role="progressbar" [attr.aria-valuenow]="+col.arrecadado" [attr.aria-valuemax]="+col.meta">
+                  <div [style.width.%]="(+col.arrecadado / +col.meta) * 100"></div>
+                </div>
+                <span class="pequeno">
+                  @if (+col.arrecadado >= +col.meta) {
+                    Meta batida, sobram {{ +col.arrecadado - +col.meta | currency: 'BRL' : 'symbol' : '1.0-0' }}
+                  } @else {
+                    Faltam {{ +col.meta - +col.arrecadado | currency: 'BRL' : 'symbol' : '1.0-0' }} de {{ +col.meta | currency: 'BRL' : 'symbol' : '1.0-0' }}
+                  }
+                </span>
+              }
+            </div>
+          }
+          @if (ev.status === 'RASCUNHO' || ev.status === 'ATIVO') {
+            <button class="botao-perigo cancelar" (click)="cancelar()" [disabled]="ocupado()">Cancelar evento</button>
+          }
+        </aside>
+      } @else if (ev.status === 'RASCUNHO' || ev.status === 'ATIVO') {
+        <aside class="lateral">
+          <button class="botao-perigo cancelar" (click)="cancelar()" [disabled]="ocupado()">Cancelar evento</button>
+        </aside>
+      }
+    </div>
+
+    <!-- Registrar pagamento feito por fora -->
+    @if (baixaDe(); as c) {
+      <div class="fundo-folha" (click)="baixaDe.set(null)">
+        <form class="folha" (click)="$event.stopPropagation()" (ngSubmit)="confirmarBaixa()">
+          <h2>Registrar pagamento</h2>
+          <p class="sub">{{ c.nome }} pagou fora do Bora, em dinheiro ou PIX direto. A presença fica confirmada.</p>
+          <div class="grupo-caixa">
+            <div class="linha">
+              <label for="baixa-valor">Valor</label>
+              <input id="baixa-valor" name="valor" type="number" min="0.01" step="0.01" [(ngModel)]="baixaValor" required />
+            </div>
+            <div class="linha">
+              <label for="baixa-obs">Observação</label>
+              <input id="baixa-obs" name="obs" [(ngModel)]="baixaObs" placeholder="Pagou em dinheiro" />
+            </div>
+          </div>
+          <div class="folha-botoes">
+            <button type="button" class="botao-secundario" (click)="baixaDe.set(null)">Voltar</button>
+            <button type="submit" [disabled]="ocupado()">Confirmar presença</button>
+          </div>
+        </form>
+      </div>
+    }
+
+    @if (aviso()) {
+      <p class="toast" role="status">{{ aviso() }}</p>
+    }
+  </main>
+} @else if (erro()) {
+  <main class="pagina"><p class="falha">{{ erro() }}</p></main>
+} @else {
+  <main class="pagina"><p class="sub carregando">Carregando o evento…</p></main>
+}

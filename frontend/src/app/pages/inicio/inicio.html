@@ -1,0 +1,94 @@
+<header class="barra">
+  <div class="barra-dentro">
+    <bora-logo [tamanho]="28" />
+    @if (logado()) {
+      <a class="botao" routerLink="/eventos">Meus eventos</a>
+    } @else {
+      <a class="entrar" routerLink="/login">Entrar</a>
+    }
+  </div>
+</header>
+
+<main>
+  <!-- Abertura -->
+  <section class="abertura">
+    <div class="abertura-texto">
+      <h1>Sua festa começa no convite.</h1>
+      <p class="chamada">
+        Crie o evento, mande o convite pelo WhatsApp e acompanhe quem vai e quem já pagou.
+        Sem planilha e sem cobrar ninguém no privado.
+      </p>
+      <div class="acoes">
+        <a class="botao botao-grande" [routerLink]="logado() ? '/eventos/novo' : '/login'">Criar meu evento</a>
+        <a class="botao-texto ver" href="#como">Ver como funciona</a>
+      </div>
+    </div>
+
+    <!-- O convite como ele chega: o objeto mais característico do Bora -->
+    <div class="palco" aria-hidden="true">
+      <div class="celular">
+        <div class="tela">
+          <div class="cartaz">
+            <span class="cartaz-data">Sábado, 16 de janeiro, 15h</span>
+            <strong class="cartaz-nome">Aniversário<br />da Ana</strong>
+            <span class="cartaz-local">Chácara Recanto, Atibaia</span>
+          </div>
+          <div class="cartao-resposta">
+            <span class="ola">Oi, Bruno! Você vai?</span>
+            <div class="resposta-botoes">
+              <span class="falso-botao principal">Vou!</span>
+              <span class="falso-botao">Não vou</span>
+            </div>
+            <span class="valor">Contribuição: R$ 30,00 por pessoa</span>
+          </div>
+        </div>
+      </div>
+      @for (c of [1, 2, 3, 4, 5, 6, 7, 8]; track c) {
+        <span class="confete c{{ c }}"></span>
+      }
+    </div>
+  </section>
+
+  <!-- Como funciona: é uma sequência de verdade -->
+  <section class="como" id="como">
+    <h2>Do convite à porta da festa.</h2>
+    <ol class="passos">
+      @for (p of passos; track p.titulo; let i = $index) {
+        <li>
+          <span class="passo-num">{{ i + 1 }}</span>
+          <h3>{{ p.titulo }}</h3>
+          <p>{{ p.texto }}</p>
+        </li>
+      }
+    </ol>
+  </section>
+
+  <!-- Dois diferenciais, contados com texto grande -->
+  <section class="destaque">
+    <div class="destaque-bloco">
+      <h2>O dinheiro cai direto na sua conta.</h2>
+      <p>
+        O convidado paga um PIX para a sua chave, com o valor exato. Sem intermediário e sem taxa.
+        Racha do aluguel, bebida ou presente: você define quanto cada um ajuda.
+      </p>
+    </div>
+    <div class="destaque-bloco">
+      <h2>Ninguém precisa ser lembrado por você.</h2>
+      <p>
+        Quem ainda não pagou recebe um lembrete por mês até o prazo, e um aviso na véspera da festa.
+        Tudo pelo seu WhatsApp, nas horas certas.
+      </p>
+    </div>
+  </section>
+
+  <section class="final">
+    <bora-logo [tamanho]="56" [soMarca]="true" />
+    <h2>Bora fazer essa festa acontecer?</h2>
+    <a class="botao botao-grande" [routerLink]="logado() ? '/eventos/novo' : '/login'">Criar meu evento</a>
+  </section>
+</main>
+
+<footer class="rodape">
+  <span>Bora</span>
+  <span>Feito para festas entre amigos.</span>
+</footer>

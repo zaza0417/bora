@@ -1,0 +1,218 @@
+@if (erro() && !convite()) {
+  <main class="vazio">
+    <bora-logo [tamanho]="44" [soMarca]="true" />
+    <h1>Esse convite não abriu.</h1>
+    <p class="sub">O link pode estar incompleto. Peça para quem te convidou mandar de novo.</p>
+  </main>
+}
+
+@if (convite(); as c) {
+  <!-- Cartaz: o convite em tela cheia -->
+  <header class="cartaz" [class.com-arte]="c.convite_imagem_url || c.capa_url">
+    @if (c.convite_imagem_url || c.capa_url) {
+      <img class="arte" [src]="c.convite_imagem_url || c.capa_url" [alt]="'Arte do convite: ' + c.evento_nome" />
+    }
+    <div class="cartaz-texto">
+      <p class="saudacao">{{ primeiroNome() }}, você foi convidado para</p>
+      <h1 class="nome-evento">{{ c.evento_nome }}</h1>
+      <p class="quando">{{ c.data_hora | date: "EEEE, d 'de' MMMM 'às' HH:mm" }}</p>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <!-- Resposta: o que a pessoa precisa fazer agora -->
+    <section class="resposta" aria-live="polite">
+      @switch (c.status) {
+        @case ('CONFIRMADO') {
+          <div class="confirmado">
+            <span class="selo-ok" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+            </span>
+            <h2>Você está na lista.</h2>
+            <p class="sub">
+              Te esperamos lá{{ c.qtd_acompanhantes ? ', você e mais ' + c.qtd_acompanhantes : '' }}.
+              Um dia antes chega um lembrete no seu WhatsApp.
+            </p>
+          </div>
+        }
+
+        @case ('AGUARDANDO_PAGAMENTO') {
+          @if (c.comprovante_recebido) {
+            <div class="esperando">
+              <h2>Comprovante recebido.</h2>
+              <p class="sub">Assim que o organizador conferir, sua presença fica confirmada e você recebe um aviso.</p>
+            </div>
+          } @else {
+            <h2>Falta sua parte da vaquinha.</h2>
+
+            <dl class="recibo">
+              @for (col of c.colaboracoes; track col.descricao) {
+                <div>
+                  <dt>{{ col.descricao }}</dt>
+                  <dd>{{ +col.valor_por_pessoa | currency: 'BRL' }}</dd>
+                </div>
+              }
+              @if (c.qtd_acompanhantes) {
+                <div>
+                  <dt>Pessoas</dt>
+                  <dd>{{ 1 + c.qtd_acompanhantes }}</dd>
+                </div>
+              }
+              @if (c.modo_pagamento === 'MERCADO_PAGO') {
+                <div class="nota">
+                  <dt>Taxa do PIX</dt>
+                  <dd>incluída</dd>
+                </div>
+              }
+              <div class="total">
+                <dt>Total</dt>
+                <dd>{{ +(c.valor_cobrado ?? 0) | currency: 'BRL' }}</dd>
+              </div>
+            </dl>
+
+            @if (c.prazo_pagamento) {
+              <p class="prazo" [class.vencido]="c.prazo_vencido">
+                @if (c.prazo_vencido) {
+                  O prazo era {{ dataLocal(c.prazo_pagamento) | date: "d 'de' MMMM" }}, mas ainda dá para pagar.
+                } @else {
+                  Pague até {{ dataLocal(c.prazo_pagamento) | date: "d 'de' MMMM" }}.
+                }
+              </p>
+            }
+
+            @if (pagamento(); as p) {
+              <div class="pix">
+                @if (p.modo === 'PIX_MANUAL') {
+                  <ol class="passos">
+                    <li>
+                      <span class="passo-bola">1</span>
+                      <div>
+                        <strong>Copie o PIX e pague no app do seu banco</strong>
+                        @if (p.pix_nome) { <span class="sub">O recebedor aparece como {{ p.pix_nome }}.</span> }
+                      </div>
+                    </li>
+                    <li>
+                      <span class="passo-bola">2</span>
+                      <div>
+                        <strong>Mande o comprovante no WhatsApp</strong>
+                        <span class="sub">A gente confere e confirma sua presença.</span>
+                      </div>
+                    </li>
+                  </ol>
+                  <button class="botao-grande botao-cheio" (click)="copiarPix()">
+                    {{ copiado() ? 'Código copiado' : 'Copiar código PIX' }}
+                  </button>
+                  @if (p.whatsapp_url) {
+                    <a class="botao botao-grande botao-cheio botao-whatsapp" [href]="p.whatsapp_url" target="_blank" rel="noopener">
+                      Enviar comprovante
+                    </a>
+                  }
+                  @if (p.pix_chave) {
+                    <p class="chave">Prefere digitar? Chave <strong>{{ p.pix_chave }}</strong>, valor {{ +p.valor | currency: 'BRL' }}.</p>
+                  }
+                } @else {
+                  @if (p.pix_qr_base64) {
+                    <img class="qr" [src]="'data:image/png;base64,' + p.pix_qr_base64" alt="QR Code do PIX" />
+                  }
+                  <button class="botao-grande botao-cheio" (click)="copiarPix()">
+                    {{ copiado() ? 'Código copiado' : 'Copiar código PIX' }}
+                  </button>
+                  <p class="chave">Assim que o pagamento cair, esta página confirma sozinha.</p>
+                }
+              </div>
+            } @else {
+              <button class="botao-grande botao-cheio" (click)="pagar()" [disabled]="enviando()">Pagar com PIX</button>
+            }
+            <button class="botao-texto desistir" (click)="responder(false)" [disabled]="enviando()">Não vou poder ir</button>
+          }
+        }
+
+        @default {
+          <h2>{{ c.status === 'RECUSOU' ? 'Mudou de ideia?' : 'E aí, bora?' }}</h2>
+          @if (c.status === 'RECUSOU') {
+            <p class="sub">Você tinha respondido que não ia. Ainda dá tempo de entrar na lista.</p>
+          }
+
+          <div class="acompanha">
+            <span>Vai levar alguém?</span>
+            <div class="contador" role="group" aria-label="Acompanhantes">
+              <button type="button" class="botao-secundario" aria-label="Menos um acompanhante"
+                (click)="acompanhantes = acompanhantes > 0 ? acompanhantes - 1 : 0" [disabled]="acompanhantes === 0">−</button>
+              <output>{{ acompanhantes }}</output>
+              <button type="button" class="botao-secundario" aria-label="Mais um acompanhante"
+                (click)="acompanhantes = acompanhantes + 1"
+                [disabled]="acompanhantes >= opcoesAcompanhantes().length - 1">+</button>
+            </div>
+          </div>
+          @if (c.tem_contribuicao && +c.valor_devido > 0) {
+            <p class="sub contribuicao">
+              Cada pessoa contribui com {{ +c.valor_devido / (1 + c.qtd_acompanhantes) | currency: 'BRL' }}.
+            </p>
+          }
+
+          <div class="decisao">
+            <button class="botao-grande vou" (click)="responder(true)" [disabled]="enviando()">Vou!</button>
+            <button class="botao-grande botao-secundario" (click)="responder(false)" [disabled]="enviando()">Não vou</button>
+          </div>
+        }
+      }
+
+      @if (erro()) {
+        <p class="falha">{{ erro() }}</p>
+      }
+
+      @if (festa()) {
+        <div class="confete-palco" aria-hidden="true">
+          @for (i of confetes; track i) {
+            <span class="papel p{{ i % 6 }}" [style.--i]="i"></span>
+          }
+        </div>
+      }
+    </section>
+
+    @if (c.local_nome || c.endereco) {
+      <section class="bloco">
+        <h3>Onde</h3>
+        <p class="destaque">{{ c.local_nome }}</p>
+        @if (c.endereco) { <p class="sub">{{ c.endereco }}</p> }
+        @if (c.mapa_url) {
+          <a class="botao botao-secundario mapa" [href]="c.mapa_url" target="_blank" rel="noopener">Abrir no mapa</a>
+        }
+      </section>
+    }
+
+    @if (c.evento_descricao) {
+      <section class="bloco">
+        <h3>Recado de quem convidou</h3>
+        <p class="recado">{{ c.evento_descricao }}</p>
+      </section>
+    }
+
+    @if (c.atracoes.length) {
+      <section class="bloco">
+        <h3>Vai ter</h3>
+        <ul class="lista">
+          @for (a of c.atracoes; track a.nome) {
+            <li><strong>{{ a.nome }}</strong>@if (a.descricao) { <span class="sub">{{ a.descricao }}</span> }</li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (c.cardapio.length) {
+      <section class="bloco">
+        <h3>Pra comer e beber</h3>
+        <ul class="lista">
+          @for (i of c.cardapio; track i.nome) {
+            <li><strong>{{ i.nome }}</strong>@if (i.descricao) { <span class="sub">{{ i.descricao }}</span> }</li>
+          }
+        </ul>
+      </section>
+    }
+
+    <footer class="assinatura">
+      <bora-logo [tamanho]="20" />
+      <span>Convite enviado pelo Bora</span>
+    </footer>
+  </main>
+}

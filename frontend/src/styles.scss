@@ -1,0 +1,569 @@
+/* =====================================================================
+   Bora — sistema visual
+   Claro e silencioso como um produto Apple; a festa aparece em um lugar só
+   (o cartaz do convite e o confete do "Vou!").
+   ===================================================================== */
+
+:root {
+  /* cor */
+  --fundo: #fbfbfd;
+  --fundo-agrupado: #f2f2f7; /* fundo das listas agrupadas (Ajustes do iPhone) */
+  --superficie: #ffffff;
+  --tinta: #1d1d1f;
+  --tinta-2: #6e6e73;
+  --tinta-3: #86868b;
+  --linha: #d2d2d7;
+  --linha-suave: #e8e8ed;
+  --marca: #ffd23f; /* amarelo festa — fundo de ações e da marca */
+  --marca-hover: #ffc61a;
+  --sobre-marca: #1d1d1f; /* texto sobre o amarelo */
+  --marca-texto: #8a5a00; /* links/ênfase em texto (amarelo puro some no branco) */
+  --marca-suave: #fff6d6;
+  --confete: #ff4d5e; /* só celebração, em pequenas doses */
+  --ok: #1f9d55;
+  --ok-suave: #e3f6ea;
+  --alerta: #b26a00;
+  --alerta-suave: #fff4df;
+  --erro: #e5484d;
+  --erro-suave: #fdecec;
+  --whatsapp: #25d366;
+
+  /* tipo */
+  --fonte-display: 'Bricolage Grotesque', 'Geist', system-ui, sans-serif;
+  --fonte: 'Geist', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+
+  /* forma: o raio cresce com a hierarquia */
+  --raio-controle: 12px;
+  --raio-grupo: 18px;
+  --raio-midia: 28px;
+
+  --sombra-elevada: 0 1px 2px rgb(0 0 0 / 4%), 0 12px 40px rgb(29 29 31 / 8%);
+  --largura: 1080px;
+  --largura-leitura: 640px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #000000;
+    --fundo-agrupado: #000000;
+    --superficie: #1c1c1e;
+    --tinta: #f5f5f7;
+    --tinta-2: #a1a1a6;
+    --tinta-3: #8e8e93;
+    --linha: #38383a;
+    --linha-suave: #2c2c2e;
+    --marca: #ffd23f;
+    --marca-hover: #ffdc66;
+    --marca-texto: #ffd23f;
+    --marca-suave: #3a3000;
+    --ok: #30d158;
+    --ok-suave: #0f2e19;
+    --alerta: #ffb340;
+    --alerta-suave: #3a2a0c;
+    --erro: #ff6961;
+    --erro-suave: #3a1416;
+    --sombra-elevada: 0 0 0 1px rgb(255 255 255 / 6%), 0 12px 40px rgb(0 0 0 / 50%);
+    color-scheme: dark;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font-family: var(--fonte);
+  font-size: 17px; /* corpo da Apple */
+  line-height: 1.47;
+  letter-spacing: -0.011em;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--fonte-display);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 5vw + 1rem, 4.5rem);
+}
+h2 {
+  font-size: clamp(1.6rem, 2vw + 1rem, 2.25rem);
+  letter-spacing: -0.03em;
+}
+h3 {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--marca-texto);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+:focus-visible {
+  outline: 3px solid #f0b400;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Layout
+   --------------------------------------------------------------------- */
+.pagina {
+  max-width: var(--largura);
+  margin: 0 auto;
+  padding: 0 22px 96px;
+}
+
+.pagina-estreita {
+  max-width: var(--largura-leitura);
+  margin: 0 auto;
+  padding: 0 20px 96px;
+}
+
+.sub {
+  color: var(--tinta-2);
+}
+
+.pequeno {
+  font-size: 0.82rem;
+  color: var(--tinta-2);
+}
+
+/* ---------------------------------------------------------------------
+   Botões
+   --------------------------------------------------------------------- */
+button,
+.botao {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px; /* alvo de toque */
+  padding: 0 1.25rem;
+  border-radius: 980px; /* pílula */
+  background: var(--marca);
+  color: var(--sobre-marca);
+  text-decoration: none;
+  transition:
+    background-color 0.2s ease,
+    transform 0.15s ease;
+
+  &:hover {
+    background: var(--marca-hover);
+    text-decoration: none;
+  }
+  &:active {
+    transform: scale(0.98);
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+    transform: none;
+  }
+}
+
+.botao-grande {
+  min-height: 54px;
+  font-size: 1.06rem;
+  padding: 0 1.75rem;
+}
+
+.botao-cheio {
+  width: 100%;
+}
+
+.botao-secundario {
+  background: color-mix(in srgb, var(--tinta) 7%, transparent);
+  color: var(--tinta);
+
+  &:hover {
+    background: color-mix(in srgb, var(--tinta) 11%, transparent);
+  }
+}
+
+.botao-texto {
+  background: transparent;
+  color: var(--marca-texto);
+  padding: 0 0.5rem;
+  min-height: 36px;
+
+  &:hover {
+    background: transparent;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+}
+
+.botao-perigo {
+  background: transparent;
+  color: var(--erro);
+  padding: 0 0.5rem;
+  min-height: 36px;
+
+  &:hover {
+    background: var(--erro-suave);
+  }
+}
+
+.botao-whatsapp {
+  background: var(--whatsapp);
+  color: #062b14;
+
+  &:hover {
+    background: #1fbe5a;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Lista agrupada (estilo Ajustes do iPhone) — formulários e configurações
+   --------------------------------------------------------------------- */
+.grupo {
+  margin: 0;
+}
+
+.grupo-titulo {
+  font-family: var(--fonte);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--tinta-2);
+  letter-spacing: 0;
+  margin: 0 0 6px 16px;
+}
+
+.grupo-rodape {
+  font-size: 0.82rem;
+  color: var(--tinta-2);
+  margin: 8px 16px 0;
+  line-height: 1.4;
+}
+
+.grupo-caixa {
+  background: var(--superficie);
+  border-radius: var(--raio-grupo);
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: light) {
+  .grupo-caixa {
+    box-shadow: 0 0 0 0.5px var(--linha-suave);
+  }
+}
+
+.linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 8px 16px;
+  position: relative;
+
+  & + .linha::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 0;
+    border-top: 0.5px solid var(--linha);
+  }
+
+  > label,
+  > .rotulo {
+    flex: none;
+    width: 36%;
+    max-width: 200px;
+    color: var(--tinta);
+  }
+
+  > input,
+  > select,
+  > textarea,
+  > .valor {
+    flex: 1;
+    min-width: 0;
+  }
+  > .interruptor {
+    flex: none;
+    margin-left: auto;
+  }
+}
+
+.linha-empilhada {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+
+  > label,
+  > .rotulo {
+    width: auto;
+    max-width: none;
+    font-size: 0.82rem;
+    color: var(--tinta-2);
+  }
+}
+
+.linha-acao {
+  justify-content: center;
+  color: var(--marca-texto);
+  cursor: pointer;
+}
+
+/* Campos sem caixa: dentro da lista agrupada eles são "texto editável" */
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--tinta);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 6px 0;
+  text-align: right;
+  min-height: 34px;
+
+  &::placeholder {
+    color: var(--tinta-3);
+  }
+}
+
+.linha-empilhada input,
+.linha-empilhada textarea,
+.linha-empilhada select,
+textarea {
+  text-align: left;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.45;
+}
+
+select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 18px;
+  background: linear-gradient(45deg, transparent 50%, var(--tinta-3) 50%) right 6px center / 6px 6px
+      no-repeat,
+    linear-gradient(-45deg, transparent 50%, var(--tinta-3) 50%) right 0 center / 6px 6px no-repeat;
+}
+
+/* Campo "solto" (fora de lista): login, adicionar convidado */
+.campo {
+  width: 100%;
+  text-align: left;
+  background: var(--superficie);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-controle);
+  padding: 0 14px;
+  min-height: 50px;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-color: #f0b400;
+    box-shadow: 0 0 0 4px var(--marca-suave);
+  }
+}
+
+/* Interruptor iOS */
+.interruptor {
+  appearance: none;
+  flex: none;
+  width: 51px;
+  height: 31px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--tinta) 16%, transparent);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 3px 8px rgb(0 0 0 / 15%), 0 1px 1px rgb(0 0 0 / 16%);
+    transition: transform 0.22s cubic-bezier(0.3, 0.7, 0.4, 1.2);
+  }
+
+  &:checked {
+    background: var(--ok);
+  }
+  &:checked::after {
+    transform: translateX(20px);
+  }
+}
+
+/* Controle segmentado iOS */
+.segmentado {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--tinta) 7%, transparent);
+
+  button {
+    min-height: 30px;
+    padding: 0 14px;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--tinta);
+    font-size: 0.88rem;
+
+    &.ativo {
+      background: var(--superficie);
+      box-shadow: 0 3px 8px rgb(0 0 0 / 12%), 0 0 0 0.5px rgb(0 0 0 / 4%);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Estados
+   --------------------------------------------------------------------- */
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--tinta) 7%, transparent);
+  color: var(--tinta-2);
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.ok {
+    background: var(--ok-suave);
+    color: var(--ok);
+  }
+  &.alerta {
+    background: var(--alerta-suave);
+    color: var(--alerta);
+  }
+  &.erro {
+    background: var(--erro-suave);
+    color: var(--erro);
+  }
+  &.marca {
+    background: var(--marca-suave);
+    color: var(--marca-texto);
+  }
+}
+
+.aviso,
+.falha {
+  border-radius: var(--raio-controle);
+  padding: 12px 16px;
+  font-size: 0.94rem;
+}
+
+.aviso {
+  background: var(--ok-suave);
+  color: var(--ok);
+}
+
+.falha {
+  background: var(--erro-suave);
+  color: var(--erro);
+}
+
+/* Toast que confirma uma ação */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(92vw, 480px);
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--tinta) 92%, transparent);
+  color: var(--fundo);
+  font-size: 0.94rem;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--sombra-elevada);
+  animation: toast-entra 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes toast-entra {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.96);
+  }
+}
