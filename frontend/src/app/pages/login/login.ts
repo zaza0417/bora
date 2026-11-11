@@ -8,6 +8,17 @@ const MENSAGENS: Record<string, string> = {
   'Invalid login credentials': 'E-mail ou senha não conferem.',
   'User already registered': 'Já existe uma conta com esse e-mail. Entre com sua senha.',
   'Password should be at least 6 characters': 'A senha precisa ter pelo menos 6 caracteres.',
+  'Email not confirmed': 'Falta confirmar seu e-mail. Abra o link que mandamos (veja também o spam).',
+};
+
+// Códigos de erro do Supabase Auth (mais estáveis que o texto da mensagem)
+const MENSAGENS_POR_CODIGO: Record<string, string> = {
+  email_not_confirmed: 'Falta confirmar seu e-mail. Abra o link que mandamos (veja também o spam).',
+  over_email_send_rate_limit:
+    'Já mandamos um e-mail há pouco. Confira sua caixa de entrada e o spam antes de tentar de novo.',
+  invalid_credentials: 'E-mail ou senha não conferem.',
+  user_already_exists: 'Já existe uma conta com esse e-mail. Entre com sua senha.',
+  weak_password: 'A senha precisa ter pelo menos 6 caracteres.',
 };
 
 @Component({
@@ -27,6 +38,15 @@ const MENSAGENS: Record<string, string> = {
           {{ modoCadastro() ? 'Leva um minuto e você já cria o primeiro evento.' : 'Entre para ver seus eventos.' }}
         </p>
 
+        @if (emailParaConfirmar(); as enviadoPara) {
+          <div class="confirmar">
+            <p class="aviso">
+              Mandamos um link de confirmação para <strong>{{ enviadoPara }}</strong>.
+              Abra o e-mail (confira também o spam) e depois entre por aqui.
+            </p>
+            <button type="button" class="botao-grande botao-cheio" (click)="irParaEntrar()">Já confirmei, entrar</button>
+          </div>
+        } @else {
         <form (ngSubmit)="enviar()">
           @if (modoCadastro()) {
             <label class="sr-only" for="nome">Seu nome</label>
@@ -46,10 +66,11 @@ const MENSAGENS: Record<string, string> = {
             {{ carregando() ? 'Um instante…' : modoCadastro() ? 'Criar conta' : 'Entrar' }}
           </button>
         </form>
+        }
 
         <p class="trocar">
           {{ modoCadastro() ? 'Já tem conta?' : 'Primeira vez aqui?' }}
-          <button type="button" class="botao-texto" (click)="modoCadastro.set(!modoCadastro()); erro.set(null)">
+          <button type="button" class="botao-texto" (click)="modoCadastro.set(!modoCadastro()); erro.set(null); emailParaConfirmar.set(null)">
             {{ modoCadastro() ? 'Entrar' : 'Criar conta' }}
           </button>
         </p>
@@ -110,6 +131,13 @@ const MENSAGENS: Record<string, string> = {
     form button {
       margin-top: 8px;
     }
+    .confirmar {
+      margin-top: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      line-height: 1.5;
+    }
     .trocar {
       margin-top: 14px;
       color: var(--tinta-2);
@@ -143,18 +171,35 @@ export class Login {
   readonly modoCadastro = signal(false);
   readonly carregando = signal(false);
   readonly erro = signal<string | null>(null);
+  /** E-mail para o qual o link de confirmação foi enviado (cadastro sem sessão ainda). */
+  readonly emailParaConfirmar = signal<string | null>(null);
 
   async enviar() {
     this.carregando.set(true);
     this.erro.set(null);
-    const { error } = this.modoCadastro()
+    const cadastro = this.modoCadastro();
+    const { data, error } = cadastro
       ? await this.supabase.cadastrar(this.email, this.senha, this.nome)
       : await this.supabase.entrar(this.email, this.senha);
     this.carregando.set(false);
     if (error) {
-      this.erro.set(MENSAGENS[error.message] ?? 'Não deu para entrar agora. Tente de novo em instantes.');
+      const padrao = cadastro
+        ? 'Não deu para criar a conta agora. Tente de novo em instantes.'
+        : 'Não deu para entrar agora. Tente de novo em instantes.';
+      this.erro.set(MENSAGENS_POR_CODIGO[error.code ?? ''] ?? MENSAGENS[error.message] ?? padrao);
+      return;
+    }
+    // Com confirmação de e-mail ligada, o cadastro volta sem sessão: avisa em vez de seguir.
+    if (cadastro && !data.session) {
+      this.emailParaConfirmar.set(this.email);
       return;
     }
     await this.router.navigateByUrl('/eventos');
+  }
+
+  irParaEntrar() {
+    this.emailParaConfirmar.set(null);
+    this.modoCadastro.set(false);
+    this.senha = '';
   }
 }
