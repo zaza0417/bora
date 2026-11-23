@@ -16,7 +16,7 @@ from app.config import get_settings
 from app.domain.mensagens import TipoMensagem, renderizar, templates_do_evento
 from app.domain.telefone import para_whatsapp
 from app.integrations.evolution import EvolutionClient
-from app.services.cobranca import modo_pagamento
+from app.services.cobranca import SQL_VALOR_PAGO, modo_pagamento
 
 log = logging.getLogger(__name__)
 
@@ -26,8 +26,9 @@ async def enfileirar_mensagem(sessao: AsyncSession, convidado_id: UUID, tipo: Ti
     c = (
         (
             await sessao.execute(
-                text("""
-                select c.nome, c.token, c.valor_devido, c.opt_out,
+                text(f"""
+                select c.nome, c.token, c.opt_out,
+                       greatest(c.valor_devido - {SQL_VALOR_PAGO}, 0) as falta_pagar,
                        e.nome as evento, e.data_hora, e.local_nome, e.prazo_pagamento, e.taxa_mp,
                        e.convite_imagem_url, e.organizador_id, e.mensagens
                   from convidado c join evento e on e.id = c.evento_id
@@ -45,9 +46,9 @@ async def enfileirar_mensagem(sessao: AsyncSession, convidado_id: UUID, tipo: Ti
     s = get_settings()
     fuso = ZoneInfo(s.fuso)
     valor = None
-    if c["valor_devido"] > 0:
+    if c["falta_pagar"] > 0:
         modo = await modo_pagamento(sessao, c["organizador_id"])
-        valor = modo.valor_cobrado(c["valor_devido"], c["taxa_mp"])
+        valor = modo.valor_cobrado(c["falta_pagar"], c["taxa_mp"])
     conteudo = renderizar(
         tipo,
         {

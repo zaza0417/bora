@@ -26,7 +26,11 @@ export interface Convite {
   colaboracoes: { descricao: string; valor_por_pessoa: string }[];
   atracoes: ItemSimples[];
   cardapio: ItemSimples[];
+  /** Total da pessoa + acompanhantes. */
   valor_devido: string;
+  valor_pago: string;
+  /** O que falta (ex.: acompanhante a mais depois de pagar). */
+  valor_a_pagar: string;
   valor_cobrado: string | null;
   modo_pagamento: 'MERCADO_PAGO' | 'PIX_MANUAL' | 'NENHUM';
   comprovante_recebido: boolean;
@@ -121,6 +125,8 @@ export interface ConvidadoLinha {
   status: StatusConvidado;
   qtd_acompanhantes: number;
   valor_devido: string;
+  valor_pago: string;
+  valor_a_pagar: string;
   opt_out: boolean;
   link: string;
   convidado_em: string;
@@ -137,6 +143,27 @@ export interface Painel {
   colaboracoes: { descricao: string; tipo: string; meta: string | null; arrecadado: string; projetado: string }[];
   mensagens_com_falha: number;
   comprovantes_pendentes: number;
+}
+
+export interface HistoricoConvidado {
+  mensagens: {
+    tipo: string;
+    status: 'PENDENTE' | 'ENVIADA' | 'ENTREGUE' | 'LIDA' | 'FALHA';
+    conteudo: string;
+    criado_em: string;
+    enviada_em: string | null;
+    erro: string | null;
+  }[];
+  pagamentos: {
+    tipo: 'CONTRIBUICAO' | 'PRESENTE';
+    presente: string | null;
+    valor: string;
+    status: string;
+    origem: 'MERCADO_PAGO' | 'MANUAL';
+    observacao: string | null;
+    criado_em: string;
+    pago_em: string | null;
+  }[];
 }
 
 export interface StatusWhatsapp {
@@ -250,6 +277,10 @@ export class ApiService {
 
   convidados(eventoId: string) {
     return this.http.get<ConvidadoLinha[]>(`${this.base}/eventos/${eventoId}/convidados`);
+  }
+
+  historicoConvidado(eventoId: string, convidadoId: string) {
+    return this.http.get<HistoricoConvidado>(`${this.base}/eventos/${eventoId}/convidados/${convidadoId}/historico`);
   }
 
   reenviarConvite(eventoId: string, convidadoId: string) {

@@ -20,12 +20,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_session
-from app.domain.estados import AcaoConvidado, StatusConvidado, TransicaoInvalida, transicionar
+from app.domain.estados import (
+    AcaoConvidado,
+    StatusConvidado,
+    TransicaoInvalida,
+    status_apos_mudar_acompanhantes,
+    transicionar,
+)
 from app.domain.pix import gerar_copia_cola, txid_do_convidado
 from app.domain.prazo import prazo_vencido
+from app.domain.valores import falta_pagar, valor_devido
 from app.integrations.mercadopago import ErroMercadoPago, MercadoPagoClient
 from app.security import descriptografar
-from app.services.cobranca import link_whatsapp_comprovante, modo_pagamento
+from app.services.cobranca import SQL_VALOR_PAGO, link_whatsapp_comprovante, modo_pagamento
 from app.services.presentes import pix_do_organizador, presentes_do_convidado
 
 router = APIRouter(prefix="/convites", tags=["convidado"])
@@ -77,8 +84,10 @@ class ConviteOut(BaseModel):
     colaboracoes: list[ColaboracaoOut]
     atracoes: list[ItemSimples]
     cardapio: list[ItemSimples]
-    valor_devido: Decimal
-    valor_cobrado: Decimal | None
+    valor_devido: Decimal  # total (pessoa + acompanhantes)
+    valor_pago: Decimal = Decimal("0.00")  # já aprovado
+    valor_a_pagar: Decimal = Decimal("0.00")  # o que falta (sem taxa)
+    valor_cobrado: Decimal | None  # o que falta, com a taxa quando houver
     modo_pagamento: str  # MERCADO_PAGO | PIX_MANUAL | NENHUM
     comprovante_recebido: bool
     prazo_pagamento: date | None
@@ -110,8 +119,9 @@ class PagamentoOut(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-_SQL_CONVIDADO = text("""
+_SQL_CONVIDADO = text(f"""
     select c.id, c.nome, c.status, c.qtd_acompanhantes, c.valor_por_pessoa, c.valor_devido,
+           {SQL_VALOR_PAGO} as valor_pago,
            c.comprovante_recebido_em,
            e.id as evento_id, e.organizador_id, e.nome as evento_nome, e.descricao, e.data_hora,
            e.local_nome, e.endereco, e.mapa_url, e.capa_url, e.convite_imagem_url,
@@ -176,6 +186,8 @@ async def ver_convite(token: str, sessao: Sessao) -> ConviteOut:
     ).mappings()
 
     devido = Decimal(c["valor_devido"])
+    pago = Decimal(c["valor_pago"])
+    falta = falta_pagar(devido, pago)
     prazo = c["prazo_pagamento"]
     modo = await modo_pagamento(sessao, c["organizador_id"])
     return ConviteOut(
@@ -196,7 +208,9 @@ async def ver_convite(token: str, sessao: Sessao) -> ConviteOut:
         atracoes=[ItemSimples(**r) for r in atracoes],
         cardapio=[ItemSimples(**r) for r in cardapio],
         valor_devido=devido,
-        valor_cobrado=modo.valor_cobrado(devido, Decimal(c["taxa_mp"])) if devido > 0 else None,
+        valor_pago=pago,
+        valor_a_pagar=falta,
+        valor_cobrado=modo.valor_cobrado(falta, Decimal(c["taxa_mp"])) if falta > 0 else None,
         modo_pagamento=modo.modo,
         comprovante_recebido=c["comprovante_recebido_em"] is not None,
         prazo_pagamento=prazo,
@@ -219,16 +233,34 @@ async def responder(token: str, dados: RespostaIn, sessao: Sessao) -> ConviteOut
         raise HTTPException(422, f"Máximo de {max_acomp} acompanhante(s)")
 
     status_atual = StatusConvidado(c["status"])
-    if status_atual is StatusConvidado.CONFIRMADO and c["tem_contribuicao"]:
-        # RF-PAG-04: após pagar, mudar acompanhantes exige cobrar a diferença (TODO fase 2)
-        if dados.qtd_acompanhantes != c["qtd_acompanhantes"] or not dados.vou:
-            raise HTTPException(409, "Presença já paga — fale com o organizador para alterar")
+    ja_pagou = Decimal(c["valor_pago"]) > 0
+    if (
+        (status_atual is StatusConvidado.CONFIRMADO or ja_pagou)
+        and c["tem_contribuicao"]
+        and not dados.vou
+    ):
+        raise HTTPException(409, "Presença já paga — fale com o organizador para desistir")
 
     acao = AcaoConvidado.ACEITAR if dados.vou else AcaoConvidado.RECUSAR
     try:
         novo = transicionar(status_atual, acao, tem_contribuicao=c["tem_contribuicao"])
     except TransicaoInvalida as e:
         raise HTTPException(409, str(e)) from e
+
+    # RF-PAG-04: já pago e aumentou os acompanhantes → volta a dever só a diferença
+    novo_devido = valor_devido(Decimal(c["valor_por_pessoa"]), dados.qtd_acompanhantes)
+    novo = status_apos_mudar_acompanhantes(
+        novo,
+        tem_contribuicao=c["tem_contribuicao"],
+        falta_pagar=falta_pagar(novo_devido, Decimal(c["valor_pago"])),
+        ja_pagou=ja_pagou,
+    )
+    if status_atual is StatusConvidado.CONFIRMADO and novo is StatusConvidado.AGUARDANDO_PAGAMENTO:
+        # O comprovante antigo já foi usado; o da diferença chega como um novo
+        await sessao.execute(
+            text("update convidado set comprovante_recebido_em = null where id = :id"),
+            {"id": c["id"]},
+        )
 
     await sessao.execute(
         text("""
@@ -261,9 +293,12 @@ async def gerar_pagamento(token: str, sessao: Sessao) -> PagamentoOut:
     if c["status"] != StatusConvidado.AGUARDANDO_PAGAMENTO.value:
         raise HTTPException(409, "Confirme sua presença antes de pagar")
 
+    devido = falta_pagar(Decimal(c["valor_devido"]), Decimal(c["valor_pago"]))
+    if devido <= 0:
+        raise HTTPException(409, "Não há nada a pagar")
+
     modo = await modo_pagamento(sessao, c["organizador_id"])
     if modo.modo == "PIX_MANUAL":
-        devido = Decimal(c["valor_devido"])
         copia_cola = gerar_copia_cola(
             chave=modo.pix_chave or "",
             nome=modo.pix_nome or "Organizador",
@@ -333,7 +368,7 @@ async def gerar_pagamento(token: str, sessao: Sessao) -> PagamentoOut:
         {"id": c["id"]},
     )
 
-    liquido = Decimal(c["valor_devido"])
+    liquido = devido
     cobrado = modo.valor_cobrado(liquido, Decimal(c["taxa_mp"]))
     pagamento_id = uuid4()
     expira_em = datetime.now(UTC) + timedelta(days=1)

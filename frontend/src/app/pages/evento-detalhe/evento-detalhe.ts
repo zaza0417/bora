@@ -10,6 +10,7 @@ import {
   ComprovanteLinha,
   ContatoWhatsapp,
   ConvidadoLinha,
+  HistoricoConvidado,
   Painel,
   PresentePainel,
   StatusConvidado,
@@ -17,6 +18,46 @@ import {
 import { Evento, EventosService } from '../../core/eventos.service';
 
 type Filtro = 'TODOS' | StatusConvidado;
+
+interface LinhaHistorico {
+  quando: string;
+  tipo: 'mensagem' | 'pagamento';
+  titulo: string;
+  estado: string;
+  problema: boolean;
+  detalhe: string;
+}
+
+const ROTULO_MENSAGEM: Record<string, string> = {
+  CONVITE: 'Convite',
+  LEMBRETE: 'Lembrete de pagamento',
+  LEMBRETE_PRAZO: 'Lembrete do prazo',
+  CONFIRMACAO: 'Presença confirmada',
+  VESPERA: 'Lembrete da véspera',
+  ALTERACAO: 'Aviso de mudança',
+  CANCELAMENTO: 'Aviso de cancelamento',
+  COMPROVANTE_RECEBIDO: 'Comprovante recebido',
+};
+
+const ROTULO_ENVIO: Record<string, string> = {
+  PENDENTE: 'Na fila',
+  ENVIADA: 'Enviada',
+  ENTREGUE: 'Entregue',
+  LIDA: 'Lida',
+  FALHA: 'Não saiu',
+};
+
+const ROTULO_PAGAMENTO: Record<string, string> = {
+  PENDENTE: 'A conferir',
+  APROVADO: 'Recebido',
+  EXPIRADO: 'PIX expirou',
+  CANCELADO: 'Cancelado',
+  ESTORNADO: 'Estornado',
+};
+
+function moeda(valor: string) {
+  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
 
 /** Quantos contatos aparecem de uma vez; acima disso, a busca refina. */
 const LIMITE_CONTATOS = 200;
@@ -98,6 +139,10 @@ export class EventoDetalhe implements OnInit {
   readonly contatosVisiveis = computed(() => this.contatosEncontrados().slice(0, LIMITE_CONTATOS));
 
   readonly faltaNome = computed(() => [...this.selecionados().values()].some((n) => !n.trim()));
+
+  // Histórico do convidado
+  readonly historicoDe = signal<ConvidadoLinha | null>(null);
+  readonly historico = signal<HistoricoConvidado | null>(null);
 
   // Baixa manual
   readonly baixaDe = signal<ConvidadoLinha | null>(null);
@@ -266,6 +311,45 @@ export class EventoDetalhe implements OnInit {
     });
   }
 
+  // --- histórico do convidado ---
+  async abrirHistorico(c: ConvidadoLinha) {
+    this.historicoDe.set(c);
+    this.historico.set(null);
+    try {
+      this.historico.set(await firstValueFrom(this.api.historicoConvidado(this.id(), c.id)));
+    } catch (e) {
+      this.historicoDe.set(null);
+      this.erro.set(this.mensagem(e));
+    }
+  }
+
+  /** Mensagens e pagamentos numa linha do tempo só, do mais recente ao mais antigo. */
+  readonly linhaDoTempo = computed(() => {
+    const h = this.historico();
+    if (!h) return [];
+    const itens: LinhaHistorico[] = [
+      ...h.mensagens.map((m) => ({
+        quando: m.enviada_em ?? m.criado_em,
+        tipo: 'mensagem' as const,
+        titulo: ROTULO_MENSAGEM[m.tipo] ?? m.tipo,
+        estado: ROTULO_ENVIO[m.status] ?? m.status,
+        problema: m.status === 'FALHA',
+        detalhe: m.status === 'FALHA' && m.erro ? 'O WhatsApp recusou o envio.' : m.conteudo,
+      })),
+      ...h.pagamentos.map((p) => ({
+        quando: p.pago_em ?? p.criado_em,
+        tipo: 'pagamento' as const,
+        titulo: (p.tipo === 'PRESENTE' ? `Presente: ${p.presente ?? 'removido'}` : 'Vaquinha') + ', ' + moeda(p.valor),
+        estado: ROTULO_PAGAMENTO[p.status] ?? p.status,
+        problema: p.status !== 'APROVADO' && p.status !== 'PENDENTE',
+        detalhe: [p.origem === 'MERCADO_PAGO' ? 'PIX pelo Mercado Pago' : 'Registrado à mão', p.observacao]
+          .filter(Boolean)
+          .join('. '),
+      })),
+    ];
+    return itens.sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime());
+  });
+
   // --- presentes ---
   async decidirPresente(pg: { id: string; convidado_nome: string; valor: string; presente: string }, confirmar: boolean) {
     if (!confirmar && !confirm(`Descartar o aviso de ${pg.convidado_nome}? Use quando o dinheiro não caiu na sua conta.`)) return;
@@ -279,7 +363,7 @@ export class EventoDetalhe implements OnInit {
 
   abrirBaixa(c: ConvidadoLinha) {
     this.baixaDe.set(c);
-    this.baixaValor = Number(c.valor_devido);
+    this.baixaValor = Number(c.valor_a_pagar);
     this.baixaObs = '';
   }
 

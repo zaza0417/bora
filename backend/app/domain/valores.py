@@ -56,6 +56,11 @@ def valor_devido(valor_pessoa: Decimal, qtd_acompanhantes: int) -> Decimal:
     return (valor_pessoa * (1 + qtd_acompanhantes)).quantize(CENTAVO)
 
 
+def falta_pagar(valor_devido: Decimal, valor_pago: Decimal) -> Decimal:
+    """O que ainda falta da vaquinha. Pagou a mais (ex.: tirou um acompanhante) → 0."""
+    return max(Decimal(valor_devido) - Decimal(valor_pago), Decimal("0.00")).quantize(CENTAVO)
+
+
 def valor_com_taxa(valor_liquido: Decimal, taxa: Decimal = TAXA_MP_PADRAO) -> Decimal:
     """Valor a cobrar para que, descontada a taxa, sobre o valor líquido.
 

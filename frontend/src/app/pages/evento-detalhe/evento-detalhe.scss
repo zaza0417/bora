@@ -128,7 +128,8 @@
   align-items: start;
 
   @media (max-width: 900px) {
-    grid-template-columns: 1fr;
+    // minmax(0, …): sem isso a barra de filtros alarga a coluna além da tela no celular
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -537,6 +538,104 @@
   display: grid;
   grid-template-columns: 1fr 1.4fr;
   gap: 10px;
+}
+
+/* ---------- histórico do convidado ---------- */
+.folha-historico {
+  max-height: min(720px, calc(100dvh - 32px));
+}
+
+.historico-cabeca {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.linha-tempo {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 4px;
+  overflow-y: auto;
+
+  li {
+    position: relative;
+    display: flex;
+    gap: 14px;
+    padding-bottom: 16px;
+
+    // traço vertical ligando os pontos
+    &::before {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 14px;
+      bottom: 0;
+      width: 1px;
+      background: var(--linha);
+    }
+
+    &:last-child::before {
+      display: none;
+    }
+  }
+
+  .ponto {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: var(--tinta-3);
+  }
+
+  .pagamento .ponto {
+    background: var(--marca);
+  }
+
+  .problema .ponto {
+    background: var(--erro);
+  }
+
+  .problema .estado {
+    color: var(--erro);
+  }
+}
+
+.item-tempo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.item-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+
+  strong {
+    font-weight: 500;
+  }
+
+  .estado {
+    flex: none;
+    font-size: 0.86rem;
+    color: var(--tinta-2);
+  }
+}
+
+.detalhe {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: var(--tinta-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ---------- presentes ---------- */

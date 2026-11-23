@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
@@ -21,7 +21,7 @@ function textoIcs(s: string) {
 /** Página pública do convidado: /c/:token (mobile-first). */
 @Component({
   selector: 'app-convite',
-  imports: [FormsModule, DatePipe, CurrencyPipe, Logo],
+  imports: [FormsModule, DatePipe, CurrencyPipe, NgTemplateOutlet, Logo],
   styleUrl: './convite.scss',
   templateUrl: './convite.html',
 })
@@ -50,6 +50,16 @@ export class ConvitePage implements OnInit {
   valorPresente: number | null = null;
 
   readonly primeiroNome = computed(() => this.convite()?.convidado_nome.split(' ')[0] ?? '');
+  /** Confirmado mudando a quantidade de acompanhantes. */
+  readonly mudandoAcompanhantes = signal(false);
+  readonly novoAcompanhantes = signal(0);
+  /** Quanto a mudança soma (> 0) ou quanto sobra do que já foi pago (< 0). */
+  readonly diferencaAcompanhantes = computed(() => {
+    const c = this.convite();
+    if (!c?.tem_contribuicao || +c.valor_devido <= 0) return 0;
+    const porPessoa = +c.valor_devido / (1 + c.qtd_acompanhantes);
+    return porPessoa * (1 + this.novoAcompanhantes()) - +c.valor_pago;
+  });
   readonly opcoesAcompanhantes = computed(() => {
     const max = this.convite()?.max_acompanhantes ?? 5;
     return Array.from({ length: max + 1 }, (_, i) => i);
@@ -69,18 +79,35 @@ export class ConvitePage implements OnInit {
     });
   }
 
-  responder(vou: boolean) {
+  responder(vou: boolean, comemorar = vou) {
     this.enviando.set(true);
     this.erro.set(null);
     this.api.responder(this.token(), vou, this.acompanhantes).subscribe({
       next: (c) => {
         this.convite.set(c);
+        this.acompanhantes = c.qtd_acompanhantes;
         this.pagamento.set(null);
         this.enviando.set(false);
-        if (vou) this.comemorar();
+        this.mudandoAcompanhantes.set(false);
+        if (comemorar) this.comemorar();
       },
       error: (e) => this.falha(e),
     });
+  }
+
+  abrirMudancaAcompanhantes() {
+    this.novoAcompanhantes.set(this.convite()?.qtd_acompanhantes ?? 0);
+    this.mudandoAcompanhantes.set(true);
+  }
+
+  mudarAcompanhantes(delta: number) {
+    const max = this.opcoesAcompanhantes().length - 1;
+    this.novoAcompanhantes.update((n) => Math.min(max, Math.max(0, n + delta)));
+  }
+
+  salvarAcompanhantes() {
+    this.acompanhantes = this.novoAcompanhantes();
+    this.responder(true, false);
   }
 
   pagar() {

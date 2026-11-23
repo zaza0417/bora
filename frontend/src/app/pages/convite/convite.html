@@ -6,6 +6,42 @@
   </main>
 }
 
+<!-- Mudar acompanhantes depois de responder (usado no confirmado e em quem já pagou uma parte) -->
+<ng-template #mudarAcomp let-c>
+  @if (mudandoAcompanhantes()) {
+    <div class="mudar-acomp">
+      <div class="acompanha">
+        <span>Quantos acompanhantes?</span>
+        <div class="contador" role="group" aria-label="Acompanhantes">
+          <button type="button" class="botao-secundario" aria-label="Menos um acompanhante"
+            (click)="mudarAcompanhantes(-1)" [disabled]="novoAcompanhantes() === 0">−</button>
+          <output>{{ novoAcompanhantes() }}</output>
+          <button type="button" class="botao-secundario" aria-label="Mais um acompanhante"
+            (click)="mudarAcompanhantes(1)" [disabled]="novoAcompanhantes() >= opcoesAcompanhantes().length - 1">+</button>
+        </div>
+      </div>
+      @if (novoAcompanhantes() !== c.qtd_acompanhantes) {
+        @if (diferencaAcompanhantes() > 0) {
+          <p class="sub">Vai faltar pagar {{ diferencaAcompanhantes() | currency: 'BRL' }}. O que você já pagou continua valendo.</p>
+        } @else if (c.tem_contribuicao && +c.valor_pago > 0 && diferencaAcompanhantes() < 0) {
+          <p class="sub">O valor que você já pagou não volta sozinho. Se quiser a diferença de volta, combine com quem te convidou.</p>
+        } @else if (c.tem_contribuicao && +c.valor_pago > 0) {
+          <p class="sub">Fica certinho com o que você já pagou.</p>
+        }
+      }
+      <div class="decisao">
+        <button type="button" class="botao-grande botao-cheio" (click)="salvarAcompanhantes()"
+          [disabled]="enviando() || novoAcompanhantes() === c.qtd_acompanhantes">Salvar</button>
+        <button type="button" class="botao-grande botao-secundario" (click)="mudandoAcompanhantes.set(false)">Voltar</button>
+      </div>
+    </div>
+  } @else {
+    <button type="button" class="botao-texto mudar" (click)="abrirMudancaAcompanhantes()">
+      {{ c.qtd_acompanhantes ? 'Mudar acompanhantes' : 'Vai levar alguém?' }}
+    </button>
+  }
+</ng-template>
+
 @if (convite(); as c) {
   <!-- Cartaz: o convite em tela cheia -->
   <header class="cartaz" [class.com-arte]="c.convite_imagem_url || c.capa_url">
@@ -33,6 +69,9 @@
               Te esperamos lá{{ c.qtd_acompanhantes ? ', você e mais ' + c.qtd_acompanhantes : '' }}.
               Um dia antes chega um lembrete no seu WhatsApp.
             </p>
+            @if (c.max_acompanhantes !== 0) {
+              <ng-container [ngTemplateOutlet]="mudarAcomp" [ngTemplateOutletContext]="{ $implicit: c }" />
+            }
             <div class="agenda">
               <button type="button" class="botao-secundario" (click)="adicionarAgenda()">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>
@@ -50,7 +89,11 @@
               <p class="sub">Assim que o organizador conferir, sua presença fica confirmada e você recebe um aviso.</p>
             </div>
           } @else {
-            <h2>Falta sua parte da vaquinha.</h2>
+            @if (+c.valor_pago > 0) {
+              <h2>Falta a parte dos novos acompanhantes.</h2>
+            } @else {
+              <h2>Falta sua parte da vaquinha.</h2>
+            }
 
             <dl class="recibo">
               @for (col of c.colaboracoes; track col.descricao) {
@@ -63,6 +106,12 @@
                 <div>
                   <dt>Pessoas</dt>
                   <dd>{{ 1 + c.qtd_acompanhantes }}</dd>
+                </div>
+              }
+              @if (+c.valor_pago > 0) {
+                <div>
+                  <dt>Você já pagou</dt>
+                  <dd>−{{ +c.valor_pago | currency: 'BRL' }}</dd>
                 </div>
               }
               @if (c.modo_pagamento === 'MERCADO_PAGO') {
@@ -130,7 +179,12 @@
             } @else {
               <button class="botao-grande botao-cheio" (click)="pagar()" [disabled]="enviando()">Pagar com PIX</button>
             }
-            <button class="botao-texto desistir" (click)="responder(false)" [disabled]="enviando()">Não vou poder ir</button>
+            @if (+c.valor_pago > 0) {
+              <!-- Já pagou uma parte: não dá para desistir por aqui, só mudar os acompanhantes -->
+              <ng-container [ngTemplateOutlet]="mudarAcomp" [ngTemplateOutletContext]="{ $implicit: c }" />
+            } @else {
+              <button class="botao-texto desistir" (click)="responder(false)" [disabled]="enviando()">Não vou poder ir</button>
+            }
           }
         }
 

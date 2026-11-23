@@ -30,6 +30,7 @@ from app.domain.mensagens import TipoMensagem
 from app.domain.telefone import TelefoneInvalido, normalizar_telefone
 from app.integrations.evolution import ErroEvolution, EventoMensagemRecebida, EvolutionClient
 from app.services import ocr, storage
+from app.services.cobranca import SQL_VALOR_PAGO
 from app.services.mensageria import enfileirar_mensagem
 from app.services.pagamentos import confirmar_pagamento_manual
 
@@ -60,8 +61,9 @@ async def processar_comprovante(sessao: AsyncSession, ev: EventoMensagemRecebida
     cand = (
         (
             await sessao.execute(
-                text("""
-                    select c.id, c.nome, c.evento_id, c.valor_devido, c.convidado_em,
+                text(f"""
+                    select c.id, c.nome, c.evento_id, c.convidado_em,
+                           c.valor_devido - {SQL_VALOR_PAGO} as falta_pagar,
                            o.pix_nome, o.baixa_automatica
                       from convidado c
                       join evento e on e.id = c.evento_id
@@ -115,7 +117,7 @@ async def processar_comprovante(sessao: AsyncSession, ev: EventoMensagemRecebida
             await confirmar_pagamento_manual(
                 sessao,
                 convidado_id=cand["id"],
-                valor=Decimal(cand["valor_devido"]),
+                valor=Decimal(cand["falta_pagar"]),
                 observacao="Baixa automática: comprovante conferido por OCR",
                 comprovante_path=midia.caminho if midia else None,
             )
@@ -154,7 +156,7 @@ async def _conferir(sessao: AsyncSession, cand, midia: Midia | None):
     fuso = ZoneInfo(get_settings().fuso)
     return analisar(
         texto,
-        valor_esperado=Decimal(cand["valor_devido"]),
+        valor_esperado=Decimal(cand["falta_pagar"]),
         nome_convidado=cand["nome"],
         nome_recebedor=cand["pix_nome"],
         desde=cand["convidado_em"].astimezone(fuso).date(),

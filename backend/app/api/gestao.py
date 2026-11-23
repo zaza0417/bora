@@ -22,6 +22,7 @@ from app.domain.mensagens import TipoMensagem
 from app.domain.prazo import calcular_prazo
 from app.security import OrganizadorAtual
 from app.services import storage
+from app.services.cobranca import SQL_VALOR_PAGO
 from app.services.mensageria import enfileirar_mensagem
 from app.services.pagamentos import confirmar_pagamento_manual
 
@@ -39,7 +40,9 @@ class ConvidadoLinha(BaseModel):
     telefone_e164: str
     status: str
     qtd_acompanhantes: int
-    valor_devido: Decimal
+    valor_devido: Decimal  # total
+    valor_pago: Decimal
+    valor_a_pagar: Decimal  # o que falta (ex.: acompanhante a mais depois de pagar)
     opt_out: bool
     link: str
     convidado_em: datetime
@@ -95,9 +98,11 @@ async def listar_convidados(
 ) -> list[ConvidadoLinha]:
     await _evento_do_organizador(sessao, evento_id, org.id)
     res = await sessao.execute(
-        text("""
+        text(f"""
             select c.id, c.nome, c.telefone_e164, c.status::text as status, c.qtd_acompanhantes,
-                   c.valor_devido, c.opt_out, c.token, c.convidado_em, c.confirmado_em,
+                   c.valor_devido, {SQL_VALOR_PAGO} as valor_pago,
+                   greatest(c.valor_devido - {SQL_VALOR_PAGO}, 0) as valor_a_pagar,
+                   c.opt_out, c.token, c.convidado_em, c.confirmado_em,
                    c.comprovante_recebido_em,
                    (select m.status::text from mensagem m where m.convidado_id = c.id
                      order by m.criado_em desc limit 1) as ultima_mensagem_status
@@ -111,6 +116,69 @@ async def listar_convidados(
         ConvidadoLinha(**{k: v for k, v in r.items() if k != "token"}, link=_link(r["token"]))
         for r in res.mappings()
     ]
+
+
+class MensagemHistorico(BaseModel):
+    tipo: str
+    status: str  # PENDENTE | ENVIADA | ENTREGUE | LIDA | FALHA
+    conteudo: str
+    criado_em: datetime
+    enviada_em: datetime | None
+    erro: str | None
+
+
+class PagamentoHistorico(BaseModel):
+    tipo: str  # CONTRIBUICAO | PRESENTE
+    presente: str | None
+    valor: Decimal
+    status: str
+    origem: str  # MERCADO_PAGO | MANUAL
+    observacao: str | None
+    criado_em: datetime
+    pago_em: datetime | None
+
+
+class HistoricoOut(BaseModel):
+    mensagens: list[MensagemHistorico]
+    pagamentos: list[PagamentoHistorico]
+
+
+@router.get("/convidados/{convidado_id}/historico", response_model=HistoricoOut)
+async def historico_convidado(
+    evento_id: UUID, convidado_id: UUID, org: OrganizadorAtual, sessao: Sessao
+) -> HistoricoOut:
+    """RF-DSH-04: tudo o que aconteceu com um convidado, do mais recente para o mais antigo."""
+    await _evento_do_organizador(sessao, evento_id, org.id)
+    existe = await sessao.execute(
+        text("select 1 from convidado where id = :c and evento_id = :ev"),
+        {"c": convidado_id, "ev": evento_id},
+    )
+    if existe.first() is None:
+        raise HTTPException(404, "Convidado não encontrado")
+    mensagens = await sessao.execute(
+        text("""
+            select tipo::text as tipo, status::text as status, conteudo, criado_em, enviada_em,
+                   case when status = 'FALHA' then erro end as erro
+              from mensagem where convidado_id = :c
+             order by criado_em desc
+        """),
+        {"c": convidado_id},
+    )
+    pagamentos = await sessao.execute(
+        text("""
+            select pg.tipo::text as tipo, p.nome as presente, pg.valor_liquido as valor,
+                   pg.status::text as status, pg.origem::text as origem, pg.observacao,
+                   pg.criado_em, pg.pago_em
+              from pagamento pg left join presente p on p.id = pg.presente_id
+             where pg.convidado_id = :c
+             order by pg.criado_em desc
+        """),
+        {"c": convidado_id},
+    )
+    return HistoricoOut(
+        mensagens=[MensagemHistorico(**m) for m in mensagens.mappings()],
+        pagamentos=[PagamentoHistorico(**p) for p in pagamentos.mappings()],
+    )
 
 
 @router.post("/convidados/{convidado_id}/reenviar")
@@ -190,13 +258,14 @@ async def listar_comprovantes(
     """Fila "para conferir": convidados que mandaram comprovante e ainda não foram confirmados."""
     await _evento_do_organizador(sessao, evento_id, org.id)
     res = await sessao.execute(
-        text("""
-            select id, nome, telefone_e164, valor_devido, comprovante_recebido_em, comprovante_path,
-                   comprovante_analise
-              from convidado
-             where evento_id = :id and comprovante_recebido_em is not null
-               and status <> 'CONFIRMADO'
-             order by comprovante_recebido_em
+        text(f"""
+            select c.id, c.nome, c.telefone_e164, c.comprovante_recebido_em, c.comprovante_path,
+                   c.comprovante_analise,
+                   greatest(c.valor_devido - {SQL_VALOR_PAGO}, 0) as valor_devido
+              from convidado c
+             where c.evento_id = :id and c.comprovante_recebido_em is not null
+               and c.status <> 'CONFIRMADO'
+             order by c.comprovante_recebido_em
         """),
         {"id": evento_id},
     )

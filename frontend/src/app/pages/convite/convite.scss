@@ -417,6 +417,21 @@
   }
 }
 
+/* ---------- mudar acompanhantes depois de confirmar ---------- */
+.mudar {
+  align-self: flex-start;
+  font-size: 0.94rem;
+  color: var(--marca-texto);
+}
+
+.mudar-acomp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--linha);
+}
+
 /* ---------- agenda ---------- */
 .agenda {
   margin-top: 6px;

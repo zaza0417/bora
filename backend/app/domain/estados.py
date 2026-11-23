@@ -53,5 +53,21 @@ def transicionar(
     raise TransicaoInvalida(atual, acao)
 
 
+def status_apos_mudar_acompanhantes(
+    atual: StatusConvidado, *, tem_contribuicao: bool, falta_pagar: object, ja_pagou: bool
+) -> StatusConvidado:
+    """RF-PAG-04: para quem já pagou algo, o status segue o que falta.
+
+    Aumentou os acompanhantes → volta a dever só a diferença. Voltou ao número que já
+    estava pago (ou menos) → confirmado de novo. O que foi pago a mais não é devolvido
+    automaticamente (isso é com o organizador).
+    """
+    if not (tem_contribuicao and ja_pagou):
+        return atual
+    if atual in (S.CONFIRMADO, S.AGUARDANDO_PAGAMENTO):
+        return S.AGUARDANDO_PAGAMENTO if falta_pagar > 0 else S.CONFIRMADO
+    return atual
+
+
 def recebe_lembrete_pagamento(status: StatusConvidado) -> bool:
     return status in (S.CONVIDADO, S.AGUARDANDO_PAGAMENTO)

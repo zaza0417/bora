@@ -192,6 +192,7 @@
                     {{ c.telefone_e164 }}@if (c.qtd_acompanhantes) {, mais {{ c.qtd_acompanhantes }} }
                     @if (c.comprovante_recebido_em && c.status !== 'CONFIRMADO') { <span class="marcador">comprovante enviado</span> }
                     @if (c.ultima_mensagem_status === 'FALHA') { <span class="marcador erro">WhatsApp falhou</span> }
+                    @if (+c.valor_pago > 0 && +c.valor_a_pagar > 0) { <span class="marcador">falta {{ +c.valor_a_pagar | currency: 'BRL' }} de acompanhante novo</span> }
                   </span>
                 </div>
                 <span class="etiqueta"
@@ -203,6 +204,7 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
                   </summary>
                   <div class="menu-lista" (click)="fecharMenu($event)">
+                    <button type="button" (click)="abrirHistorico(c)">Ver histórico</button>
                     <button type="button" (click)="copiarLink(c)">Copiar link do convite</button>
                     @if (ev.status === 'ATIVO') {
                       <button type="button" (click)="reenviar(c)" [disabled]="ocupado()">Reenviar convite</button>
@@ -310,6 +312,42 @@
         </aside>
       }
     </div>
+
+    <!-- Histórico do convidado -->
+    @if (historicoDe(); as c) {
+      <div class="fundo-folha" (click)="historicoDe.set(null)">
+        <div class="folha folha-historico" role="dialog" [attr.aria-label]="'Histórico de ' + c.nome" (click)="$event.stopPropagation()">
+          <div class="historico-cabeca">
+            <h2>{{ c.nome }}</h2>
+            <span class="pequeno">
+              {{ rotulo[c.status] }}{{ c.qtd_acompanhantes ? ', mais ' + c.qtd_acompanhantes : '' }}{{ +c.valor_pago > 0 ? ', pagou ' + (+c.valor_pago | currency: 'BRL') : '' }}
+            </span>
+          </div>
+          @if (!historico()) {
+            <p class="sub">Carregando…</p>
+          } @else if (linhaDoTempo().length === 0) {
+            <p class="sub">Nada aconteceu ainda. O convite sai quando você ativar o evento.</p>
+          } @else {
+            <ol class="linha-tempo">
+              @for (item of linhaDoTempo(); track $index) {
+                <li [class.pagamento]="item.tipo === 'pagamento'" [class.problema]="item.problema">
+                  <span class="ponto" aria-hidden="true"></span>
+                  <div class="item-tempo">
+                    <div class="item-topo">
+                      <strong>{{ item.titulo }}</strong>
+                      <span class="estado">{{ item.estado }}</span>
+                    </div>
+                    <span class="pequeno">{{ item.quando | date: "d/MM 'às' HH:mm" }}</span>
+                    @if (item.detalhe) { <p class="detalhe">{{ item.detalhe }}</p> }
+                  </div>
+                </li>
+              }
+            </ol>
+          }
+          <button type="button" class="botao-secundario" (click)="historicoDe.set(null)">Fechar</button>
+        </div>
+      </div>
+    }
 
     <!-- Registrar pagamento feito por fora -->
     @if (baixaDe(); as c) {

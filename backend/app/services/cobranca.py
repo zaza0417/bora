@@ -15,6 +15,11 @@ from app.domain.valores import valor_com_taxa
 
 Modo = Literal["MERCADO_PAGO", "PIX_MANUAL", "NENHUM"]
 
+# Quanto o convidado `c` já pagou da vaquinha (subconsulta para usar nos SELECTs com alias c).
+SQL_VALOR_PAGO = """(select coalesce(sum(pg.valor_liquido), 0) from pagamento pg
+                      where pg.convidado_id = c.id and pg.tipo = 'CONTRIBUICAO'
+                        and pg.status = 'APROVADO')"""
+
 
 @dataclass(frozen=True)
 class ModoPagamento:
