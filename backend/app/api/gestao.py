@@ -268,7 +268,8 @@ async def painel(evento_id: UUID, org: OrganizadorAtual, sessao: Sessao) -> Pain
                                     and e.prazo_pagamento < current_date) as vencidos,
               (select coalesce(sum(pg.valor_liquido), 0) from pagamento pg
                  join convidado c2 on c2.id = pg.convidado_id
-                where c2.evento_id = :id and pg.status = 'APROVADO') as arrecadado,
+                where c2.evento_id = :id and pg.status = 'APROVADO'
+                  and pg.tipo = 'CONTRIBUICAO') as arrecadado,
               (select count(*) from mensagem m join convidado c3 on c3.id = m.convidado_id
                 where c3.evento_id = :id and m.status = 'FALHA') as falhas,
               (select count(*) from convidado c4

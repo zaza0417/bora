@@ -1,8 +1,22 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ApiService, Convite, Pagamento } from '../../core/api.service';
+import { Observable } from 'rxjs';
+import { ApiService, Convite, Pagamento, PixPresente, PresenteConvite } from '../../core/api.service';
 import { Logo } from '../../shared/logo';
+
+/** Duração presumida da festa no calendário (o evento só tem horário de início). */
+const DURACAO_HORAS = 4;
+
+/** Data em UTC no formato do iCalendar/Google: 20270116T220000Z */
+function dataCalendario(d: Date) {
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+/** Escapa texto para o .ics (RFC 5545). */
+function textoIcs(s: string) {
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
 
 /** Página pública do convidado: /c/:token (mobile-first). */
 @Component({
@@ -27,6 +41,13 @@ export class ConvitePage implements OnInit {
   readonly festa = signal(false);
   readonly confetes = Array.from({ length: 18 }, (_, i) => i);
   acompanhantes = 0;
+
+  // Presentes
+  readonly presenteEmDinheiro = signal<string | null>(null); // id do presente sendo pago
+  readonly pixPresente = signal<PixPresente | null>(null);
+  readonly ocupadoPresente = signal<string | null>(null);
+  readonly pixPresenteCopiado = signal(false);
+  valorPresente: number | null = null;
 
   readonly primeiroNome = computed(() => this.convite()?.convidado_nome.split(' ')[0] ?? '');
   readonly opcoesAcompanhantes = computed(() => {
@@ -123,6 +144,145 @@ export class ConvitePage implements OnInit {
         }
       });
     }, 5000);
+  }
+
+  // --- presentes ---
+  podeReservar(p: PresenteConvite) {
+    return p.modo !== 'DINHEIRO';
+  }
+
+  podeDarDinheiro(p: PresenteConvite) {
+    return p.modo !== 'RESERVA' && !!this.convite()?.presente_em_dinheiro;
+  }
+
+  progresso(p: PresenteConvite) {
+    return p.valor_referencia ? Math.min(100, (+p.arrecadado / +p.valor_referencia) * 100) : 0;
+  }
+
+  reservar(p: PresenteConvite) {
+    this.acaoPresente(p, this.api.reservarPresente(this.token(), p.id));
+  }
+
+  desistir(p: PresenteConvite) {
+    this.acaoPresente(p, this.api.cancelarReserva(this.token(), p.id));
+  }
+
+  abrirDinheiro(p: PresenteConvite) {
+    const aberto = this.presenteEmDinheiro() === p.id;
+    this.presenteEmDinheiro.set(aberto ? null : p.id);
+    this.pixPresente.set(null);
+    this.valorPresente = null;
+  }
+
+  gerarPixPresente(p: PresenteConvite) {
+    if (!this.valorPresente) return;
+    this.ocupadoPresente.set(p.id);
+    this.erro.set(null);
+    this.api.pixPresente(this.token(), p.id, this.valorPresente).subscribe({
+      next: (pix) => {
+        this.pixPresente.set(pix);
+        this.ocupadoPresente.set(null);
+      },
+      error: (e) => this.falhaPresente(e),
+    });
+  }
+
+  async copiarPixPresente() {
+    const codigo = this.pixPresente()?.pix_copia_cola;
+    if (!codigo) return;
+    await navigator.clipboard.writeText(codigo);
+    this.pixPresenteCopiado.set(true);
+    setTimeout(() => this.pixPresenteCopiado.set(false), 2500);
+  }
+
+  avisarPago(p: PresenteConvite) {
+    const valor = Number(this.pixPresente()?.valor ?? this.valorPresente);
+    if (!valor) return;
+    this.acaoPresente(p, this.api.avisarPresentePago(this.token(), p.id, valor), () => {
+      this.presenteEmDinheiro.set(null);
+      this.pixPresente.set(null);
+      this.valorPresente = null;
+    });
+  }
+
+  private acaoPresente(
+    p: PresenteConvite,
+    req: Observable<Convite>,
+    depois?: () => void,
+  ) {
+    this.ocupadoPresente.set(p.id);
+    this.erro.set(null);
+    req.subscribe({
+      next: (c) => {
+        this.convite.set(c);
+        this.ocupadoPresente.set(null);
+        depois?.();
+      },
+      error: (e) => this.falhaPresente(e),
+    });
+  }
+
+  private falhaPresente(e: { error?: { detail?: string } }) {
+    this.ocupadoPresente.set(null);
+    this.erro.set(e.error?.detail ?? 'Não deu agora. Confira sua internet e tente de novo.');
+    // Alguém pode ter escolhido o mesmo presente: atualiza a lista
+    this.api.convite(this.token()).subscribe((c) => this.convite.set(c));
+  }
+
+  // --- agenda ---
+  private janelaEvento() {
+    const c = this.convite()!;
+    const inicio = new Date(c.data_hora);
+    const fim = new Date(inicio.getTime() + DURACAO_HORAS * 3600_000);
+    const local = [c.local_nome, c.endereco].filter(Boolean).join(', ');
+    return { c, inicio, fim, local, link: location.href };
+  }
+
+  /** Baixa um .ics: no iPhone abre direto o "Adicionar ao Calendário". */
+  adicionarAgenda() {
+    const { c, inicio, fim, local, link } = this.janelaEvento();
+    const linhas = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Bora//Convite//PT-BR',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${this.token()}@bora`,
+      `DTSTAMP:${dataCalendario(new Date())}`,
+      `DTSTART:${dataCalendario(inicio)}`,
+      `DTEND:${dataCalendario(fim)}`,
+      `SUMMARY:${textoIcs(c.evento_nome)}`,
+      ...(local ? [`LOCATION:${textoIcs(local)}`] : []),
+      `DESCRIPTION:${textoIcs((c.evento_descricao ? c.evento_descricao + '\n\n' : '') + 'Convite: ' + link)}`,
+      `URL:${link}`,
+      'BEGIN:VALARM',
+      'TRIGGER:-PT3H',
+      'ACTION:DISPLAY',
+      `DESCRIPTION:${textoIcs(c.evento_nome)}`,
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ];
+    const blob = new Blob([linhas.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = c.evento_nome.replace(/[^\p{L}\p{N} ]/gu, '').trim().replace(/\s+/g, '-').toLowerCase() + '.ics';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  googleAgenda() {
+    const { c, inicio, fim, local, link } = this.janelaEvento();
+    const q = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: c.evento_nome,
+      dates: `${dataCalendario(inicio)}/${dataCalendario(fim)}`,
+      details: (c.evento_descricao ? c.evento_descricao + '\n\n' : '') + 'Convite: ' + link,
+      location: local,
+    });
+    return `https://calendar.google.com/calendar/render?${q}`;
   }
 
   private falha(e: { error?: { detail?: string } }) {

@@ -32,6 +32,50 @@ export interface Convite {
   comprovante_recebido: boolean;
   prazo_pagamento: string | null;
   prazo_vencido: boolean;
+  presentes: PresenteConvite[];
+  presente_em_dinheiro: boolean;
+}
+
+export type ModoPresente = 'RESERVA' | 'DINHEIRO' | 'AMBOS';
+
+export interface PresenteConvite {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  link_loja: string | null;
+  imagem_url: string | null;
+  modo: ModoPresente;
+  valor_referencia: string | null;
+  reservado: boolean;
+  reservado_por_mim: boolean;
+  arrecadado: string;
+  meu_valor_a_conferir: string;
+  meu_valor_confirmado: string;
+}
+
+export interface PixPresente {
+  valor: string;
+  pix_copia_cola: string;
+  pix_chave: string;
+  pix_nome: string | null;
+}
+
+export interface PresentePainel {
+  id: string;
+  nome: string;
+  modo: ModoPresente;
+  valor_referencia: string | null;
+  reservado_por_nome: string | null;
+  reservado_em: string | null;
+  arrecadado: string;
+  pagamentos: {
+    id: string;
+    convidado_nome: string;
+    valor: string;
+    status: 'PENDENTE' | 'APROVADO';
+    criado_em: string;
+    pago_em: string | null;
+  }[];
 }
 
 export interface Pagamento {
@@ -139,7 +183,35 @@ export class ApiService {
     );
   }
 
+  reservarPresente(token: string, presenteId: string) {
+    return this.http.post<Convite>(`${this.base}/convites/${token}/presentes/${presenteId}/reserva`, {});
+  }
+
+  cancelarReserva(token: string, presenteId: string) {
+    return this.http.delete<Convite>(`${this.base}/convites/${token}/presentes/${presenteId}/reserva`);
+  }
+
+  pixPresente(token: string, presenteId: string, valor: number) {
+    return this.http.post<PixPresente>(`${this.base}/convites/${token}/presentes/${presenteId}/pix`, { valor });
+  }
+
+  avisarPresentePago(token: string, presenteId: string, valor: number) {
+    return this.http.post<Convite>(`${this.base}/convites/${token}/presentes/${presenteId}/paguei`, { valor });
+  }
+
   // --- organizador (autenticado) ---
+  mensagensPadrao() {
+    return this.http.get<Record<string, string[]>>(`${this.base}/mensagens/padrao`);
+  }
+
+  presentesEvento(eventoId: string) {
+    return this.http.get<PresentePainel[]>(`${this.base}/eventos/${eventoId}/presentes`);
+  }
+
+  decidirPresente(eventoId: string, pagamentoId: string, decisao: 'confirmar' | 'descartar') {
+    return this.http.post(`${this.base}/eventos/${eventoId}/presentes/pagamentos/${pagamentoId}/${decisao}`, {});
+  }
+
   eu() {
     return this.http.get<{
       id: string;

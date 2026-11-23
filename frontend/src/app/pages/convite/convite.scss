@@ -417,6 +417,189 @@
   }
 }
 
+/* ---------- agenda ---------- */
+.agenda {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+
+  .botao-secundario {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .botao-texto {
+    font-size: 0.94rem;
+    color: var(--tinta-2);
+  }
+}
+
+/* ---------- presentes ---------- */
+.lista-presentes {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+
+  > li {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 0;
+    border-bottom: 0.5px solid var(--linha);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    &.escolhido .presente-info strong {
+      color: var(--tinta-3);
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+  }
+}
+
+.presente-linha {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.presente-foto {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--tinta) 6%, transparent);
+
+  &.sem-foto {
+    display: grid;
+    place-items: center;
+    color: var(--tinta-3);
+
+    svg {
+      width: 26px;
+      height: 26px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+    }
+  }
+}
+
+.presente-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-size: 1.06rem;
+    font-weight: 600;
+  }
+
+  a {
+    align-self: flex-start;
+    font-size: 0.9rem;
+    color: var(--marca-texto);
+  }
+}
+
+.barra {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tinta) 8%, transparent);
+  overflow: hidden;
+
+  div {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--marca);
+    transition: width 0.4s ease;
+  }
+}
+
+.presente-nota {
+  font-size: 0.92rem;
+  color: var(--tinta-2);
+
+  &.ok {
+    color: var(--ok);
+    font-weight: 500;
+  }
+}
+
+.presente-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.selo-meu {
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.selo-escolhido {
+  font-size: 0.94rem;
+  color: var(--tinta-3);
+}
+
+.presente-pix {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--raio-grupo);
+  background: var(--superficie);
+}
+
+.valor-presente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  label {
+    width: 100%;
+    font-weight: 500;
+  }
+
+  .real {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--tinta-2);
+    font-size: 1.2rem;
+
+    input {
+      width: 6em;
+      font-size: 1.2rem;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
 .assinatura {
   margin-top: 56px;
   display: flex;

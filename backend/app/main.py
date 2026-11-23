@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import convites, gestao, integracoes, organizador, webhooks
+from app.api import convites, gestao, integracoes, organizador, presentes, webhooks
 from app.config import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -29,6 +29,8 @@ app.add_middleware(
 )
 
 app.include_router(convites.router)
+app.include_router(presentes.publico)
+app.include_router(presentes.organizador)
 app.include_router(organizador.router)
 app.include_router(gestao.router)
 app.include_router(integracoes.router)

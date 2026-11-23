@@ -64,6 +64,21 @@ TEMPLATES_PADRAO: dict[TipoMensagem, list[str]] = {
 }
 
 
+VARIAVEIS = ("nome", "evento", "data", "local", "valor", "prazo", "link")
+
+
+def templates_do_evento(personalizados: dict | None) -> dict[TipoMensagem, list[str]]:
+    """{'CONVITE': 'texto'} vindo do banco → {TipoMensagem.CONVITE: ['texto']}.
+
+    Ignora tipos desconhecidos e textos vazios (esses usam o texto padrão).
+    """
+    saida: dict[TipoMensagem, list[str]] = {}
+    for chave, texto in (personalizados or {}).items():
+        if chave in TipoMensagem.__members__ and isinstance(texto, str) and texto.strip():
+            saida[TipoMensagem(chave)] = [texto.strip()]
+    return saida
+
+
 class _SafeDict(dict):
     def __missing__(self, chave: str) -> str:
         return "{" + chave + "}"
@@ -89,7 +104,8 @@ def renderizar(
     templates: dict[TipoMensagem, list[str]] | None = None,
     rng: random.Random | None = None,
 ) -> str:
-    opcoes = (templates or TEMPLATES_PADRAO)[tipo]
+    # Texto personalizado do evento (RF-MSG-09) substitui as variações padrão daquele tipo
+    opcoes = (templates or {}).get(tipo) or TEMPLATES_PADRAO[tipo]
     escolhido = (rng or random).choice(opcoes)
     vars_fmt: dict[str, str] = {}
     for chave, valor in variaveis.items():

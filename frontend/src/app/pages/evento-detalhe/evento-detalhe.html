@@ -219,6 +219,61 @@
             }
           </ul>
         </section>
+
+        <!-- Presentes -->
+        @if (presentes().length) {
+          <section class="secao">
+            <div class="secao-cabeca">
+              <h2>Presentes</h2>
+              <span class="pequeno">{{ presentes().length }} na lista</span>
+            </div>
+
+            @if (presentesAConferir().length) {
+              <div class="a-conferir">
+                <p class="sub">Convidados avisaram que mandaram dinheiro. Confira no extrato do seu banco.</p>
+                <ul class="conferir-lista">
+                  @for (pg of presentesAConferir(); track pg.id) {
+                    <li>
+                      <div class="conf-info">
+                        <strong>{{ pg.convidado_nome }}, {{ +pg.valor | currency: 'BRL' }}</strong>
+                        <span class="pequeno">{{ pg.presente }}, avisou {{ pg.criado_em | date: "d/MM 'às' HH:mm" }}</span>
+                      </div>
+                      <div class="conf-acoes">
+                        <button (click)="decidirPresente(pg, true)" [disabled]="ocupado()">Caiu</button>
+                        <button class="botao-perigo" (click)="decidirPresente(pg, false)" [disabled]="ocupado()">Não caiu</button>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+
+            <ul class="presentes-lista">
+              @for (p of presentes(); track p.id) {
+                <li>
+                  <div class="conf-info">
+                    <strong>{{ p.nome }}</strong>
+                    <span class="pequeno">
+                      @if (p.reservado_por_nome) {
+                        {{ p.reservado_por_nome }} vai levar
+                      } @else if (p.modo === 'DINHEIRO') {
+                        Em dinheiro
+                      } @else {
+                        Ninguém escolheu ainda
+                      }
+                    </span>
+                  </div>
+                  @if (p.modo !== 'RESERVA') {
+                    <span class="presente-valor">
+                      {{ +p.arrecadado | currency: 'BRL' : 'symbol' : '1.0-0' }}
+                      @if (p.valor_referencia) { <span class="pequeno">de {{ +p.valor_referencia | currency: 'BRL' : 'symbol' : '1.0-0' }}</span> }
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
       </div>
 
       <!-- Lateral: arrecadação -->

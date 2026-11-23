@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import get_settings
-from app.domain.mensagens import TipoMensagem, renderizar
+from app.domain.mensagens import TipoMensagem, renderizar, templates_do_evento
 from app.domain.telefone import para_whatsapp
 from app.integrations.evolution import EvolutionClient
 from app.services.cobranca import modo_pagamento
@@ -29,7 +29,7 @@ async def enfileirar_mensagem(sessao: AsyncSession, convidado_id: UUID, tipo: Ti
                 text("""
                 select c.nome, c.token, c.valor_devido, c.opt_out,
                        e.nome as evento, e.data_hora, e.local_nome, e.prazo_pagamento, e.taxa_mp,
-                       e.convite_imagem_url, e.organizador_id
+                       e.convite_imagem_url, e.organizador_id, e.mensagens
                   from convidado c join evento e on e.id = c.evento_id
                  where c.id = :id
             """),
@@ -59,6 +59,7 @@ async def enfileirar_mensagem(sessao: AsyncSession, convidado_id: UUID, tipo: Ti
             "prazo": c["prazo_pagamento"],
             "link": f"{s.url_publica_front.rstrip('/')}/c/{c['token']}",
         },
+        templates_do_evento(c["mensagens"]),
     )
     # A arte do convite vai junto só na mensagem de CONVITE (texto vira legenda da imagem)
     midia_url = c["convite_imagem_url"] if tipo is TipoMensagem.CONVITE else None

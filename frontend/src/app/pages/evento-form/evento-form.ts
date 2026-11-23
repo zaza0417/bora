@@ -11,11 +11,26 @@ import {
   Evento,
   EventosService,
   ItemCardapioForm,
+  PresenteForm,
   valorPorPessoa,
 } from '../../core/eventos.service';
 
 const FUSO = 'America/Sao_Paulo';
 const TAMANHO_MAX_ARTE = 5 * 1024 * 1024;
+
+/** Mensagens que o organizador pode reescrever (RF-MSG-09), na ordem em que acontecem. */
+const TIPOS_MENSAGEM: { tipo: string; rotulo: string; quando: string; soComVaquinha?: boolean }[] = [
+  { tipo: 'CONVITE', rotulo: 'Convite', quando: 'Vai com a arte, quando o convite sai' },
+  { tipo: 'LEMBRETE', rotulo: 'Lembrete de pagamento', quando: 'Uma vez por mês, para quem não pagou', soComVaquinha: true },
+  { tipo: 'LEMBRETE_PRAZO', rotulo: 'Prazo chegando', quando: '3 dias antes e no dia do prazo', soComVaquinha: true },
+  { tipo: 'COMPROVANTE_RECEBIDO', rotulo: 'Comprovante recebido', quando: 'Quando o comprovante chega no seu WhatsApp', soComVaquinha: true },
+  { tipo: 'CONFIRMACAO', rotulo: 'Presença confirmada', quando: 'Quando a presença é confirmada' },
+  { tipo: 'VESPERA', rotulo: 'Véspera', quando: 'Um dia antes, para os confirmados' },
+  { tipo: 'ALTERACAO', rotulo: 'Mudança de data ou local', quando: 'Quando você muda a data ou o local' },
+  { tipo: 'CANCELAMENTO', rotulo: 'Cancelamento', quando: 'Se você cancelar o evento' },
+];
+
+export const VARIAVEIS_MENSAGEM = ['{nome}', '{evento}', '{data}', '{local}', '{valor}', '{prazo}', '{link}'];
 
 /** Converte timestamptz → {data: 'yyyy-mm-dd', hora: 'HH:mm'} no fuso de Brasília. */
 function separarDataHora(iso: string): { data: string; hora: string } {
@@ -71,6 +86,7 @@ export class EventoForm implements OnInit {
     max_acompanhantes: null,
     prazo_pagamento: null,
     prazo_manual: false,
+    mensagens: {},
   };
   data = '';
   hora = '19:00';
@@ -78,6 +94,17 @@ export class EventoForm implements OnInit {
   readonly colaboracoes = signal<ColaboracaoForm[]>([]);
   readonly atracoes = signal<AtracaoForm[]>([]);
   readonly cardapio = signal<ItemCardapioForm[]>([]);
+  readonly presentes = signal<PresenteForm[]>([]);
+  readonly enviandoFoto = signal<number | null>(null);
+
+  // Textos das mensagens
+  readonly padroes = signal<Record<string, string[]>>({});
+  readonly mensagemAberta = signal<string | null>(null);
+  readonly variaveis = VARIAVEIS_MENSAGEM;
+
+  tiposMensagem() {
+    return TIPOS_MENSAGEM.filter((t) => !t.soComVaquinha || this.evento.tem_contribuicao);
+  }
 
   readonly totalPorPessoa = computed(() =>
     this.colaboracoes().reduce((soma, c) => soma + (valorPorPessoa(c) ?? 0), 0),
@@ -86,6 +113,7 @@ export class EventoForm implements OnInit {
   readonly valorPorPessoa = valorPorPessoa;
 
   async ngOnInit() {
+    this.api.mensagensPadrao().subscribe({ next: (p) => this.padroes.set(p), error: () => {} });
     const id = this.id();
     if (!id) return;
     this.carregando.set(true);
@@ -97,6 +125,8 @@ export class EventoForm implements OnInit {
       this.colaboracoes.set(dados.colaboracoes);
       this.atracoes.set(dados.atracoes);
       this.cardapio.set(dados.cardapio);
+      this.presentes.set(dados.presentes);
+      this.evento.mensagens ??= {};
     } catch (e) {
       this.erro.set((e as Error).message);
     } finally {
@@ -141,6 +171,70 @@ export class EventoForm implements OnInit {
     this.cardapio.update((l) => [...l, { categoria: null, nome: '', descricao: null }]);
   }
 
+  adicionarPresente() {
+    this.presentes.update((l) => [
+      ...l,
+      { nome: '', descricao: null, link_loja: null, imagem_url: null, modo: 'RESERVA', valor_referencia: null },
+    ]);
+  }
+
+  async escolherFotoPresente(ev: Event, indice: number) {
+    const arquivo = (ev.target as HTMLInputElement).files?.[0];
+    if (!arquivo) return;
+    if (!arquivo.type.startsWith('image/')) return this.erro.set('Envie uma imagem (JPG ou PNG).');
+    if (arquivo.size > TAMANHO_MAX_ARTE) return this.erro.set('A imagem deve ter até 5 MB.');
+    this.enviandoFoto.set(indice);
+    this.erro.set(null);
+    try {
+      const url = await this.eventos.enviarArte(arquivo, 'presente');
+      this.presentes.update((l) => l.map((p, i) => (i === indice ? { ...p, imagem_url: url } : p)));
+    } catch (e) {
+      this.erro.set('Falha ao enviar a foto: ' + (e as Error).message);
+    } finally {
+      this.enviandoFoto.set(null);
+    }
+  }
+
+  // --- textos das mensagens ---
+  /** Texto reescrito pelo organizador (diferente de todos os padrões)? */
+  personalizada(tipo: string) {
+    const texto = this.evento.mensagens[tipo]?.trim();
+    return !!texto && !(this.padroes()[tipo] ?? []).some((p) => p.trim() === texto);
+  }
+
+  abrirMensagem(tipo: string) {
+    if (this.mensagemAberta() === tipo) return this.mensagemAberta.set(null);
+    if (!this.evento.mensagens[tipo]?.trim()) this.evento.mensagens[tipo] = this.padroes()[tipo]?.[0] ?? '';
+    this.mensagemAberta.set(tipo);
+  }
+
+  usarPadrao(tipo: string) {
+    delete this.evento.mensagens[tipo];
+    this.mensagemAberta.set(null);
+  }
+
+  inserirVariavel(tipo: string, variavel: string, campo: HTMLTextAreaElement) {
+    const texto = this.evento.mensagens[tipo] ?? '';
+    const ini = campo.selectionStart ?? texto.length;
+    const fim = campo.selectionEnd ?? texto.length;
+    this.evento.mensagens[tipo] = texto.slice(0, ini) + variavel + texto.slice(fim);
+    queueMicrotask(() => {
+      campo.focus();
+      campo.setSelectionRange(ini + variavel.length, ini + variavel.length);
+    });
+  }
+
+  /** Guarda só o que foi realmente reescrito: igual a um texto padrão = padrão. */
+  private mensagensParaSalvar(): Record<string, string> {
+    const saida: Record<string, string> = {};
+    for (const [tipo, texto] of Object.entries(this.evento.mensagens ?? {})) {
+      const limpo = texto?.trim();
+      if (!limpo || (this.padroes()[tipo] ?? []).some((p) => p.trim() === limpo)) continue;
+      saida[tipo] = limpo;
+    }
+    return saida;
+  }
+
   remover<T>(lista: WritableSignal<T[]>, indice: number) {
     lista.update((l) => l.filter((_, i) => i !== indice));
   }
@@ -168,6 +262,11 @@ export class EventoForm implements OnInit {
     }
     if (this.atracoes().some((a) => !a.nome.trim())) return 'Toda atração precisa de um nome.';
     if (this.cardapio().some((i) => !i.nome.trim())) return 'Todo item do cardápio precisa de um nome.';
+    if (this.presentes().some((p) => !p.nome.trim())) return 'Todo presente precisa de um nome.';
+    const convite = this.mensagensParaSalvar()['CONVITE'];
+    if (convite && !convite.includes('{link}')) {
+      return 'O texto do convite precisa ter {link}, senão o convidado não tem onde responder.';
+    }
     return null;
   }
 
@@ -192,10 +291,17 @@ export class EventoForm implements OnInit {
           ...this.evento,
           data_hora: novaDataHora,
           convite_imagem_url: this.arteUrl(),
+          mensagens: this.mensagensParaSalvar(),
         },
         colaboracoes: colabs,
         atracoes: this.atracoes().map((a) => ({ ...a, horario: a.horario || null })),
         cardapio: this.cardapio(),
+        presentes: this.presentes().map((p) => ({
+          ...p,
+          nome: p.nome.trim(),
+          link_loja: p.link_loja?.trim() || null,
+          valor_referencia: p.modo === 'RESERVA' ? null : p.valor_referencia || null,
+        })),
       });
       // Evento ativo com data alterada → recalcula o prazo automático no backend
       if (this.evento.status === 'ATIVO' && mudouData) {

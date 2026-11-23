@@ -203,6 +203,98 @@
         </div>
       </section>
 
+      <!-- Lista de presentes -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Lista de presentes</h2>
+        <div class="grupo-caixa">
+          @for (p of presentes(); track $index; let i = $index) {
+            <div class="linha colab presente">
+              <div class="colab-cabeca">
+                <label class="foto-presente" [class.com-foto]="p.imagem_url" [attr.aria-label]="'Foto do presente ' + (i + 1)">
+                  @if (p.imagem_url) {
+                    <img [src]="p.imagem_url" alt="" />
+                  } @else {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-5-3.5-5-1.2C7 7 9 7 12 7Zm0 0c1.5-3 5-3.5 5-1.2C17 7 15 7 12 7Z" /></svg>
+                  }
+                  @if (enviandoFoto() === i) { <span class="foto-enviando">…</span> }
+                  <input type="file" accept="image/png,image/jpeg,image/webp" (change)="escolherFotoPresente($event, i)" [disabled]="enviandoFoto() !== null" />
+                </label>
+                <input [name]="'pre-nome-' + i" class="colab-nome" [(ngModel)]="p.nome" placeholder="Air fryer, jogo de toalhas, viagem" [attr.aria-label]="'Presente ' + (i + 1)" />
+                @if (p.escolhido) {
+                  <span class="etiqueta ok" title="Alguém já escolheu este presente">Escolhido</span>
+                } @else {
+                  <button type="button" class="remover-x" (click)="remover(presentes, i)" [attr.aria-label]="'Remover presente ' + (i + 1)">×</button>
+                }
+              </div>
+              <div class="segmentado" role="radiogroup" [attr.aria-label]="'Como dar o presente ' + (i + 1)">
+                <button type="button" role="radio" [class.ativo]="p.modo === 'RESERVA'" [attr.aria-checked]="p.modo === 'RESERVA'" (click)="p.modo = 'RESERVA'; tocar(presentes)">Levar</button>
+                <button type="button" role="radio" [class.ativo]="p.modo === 'DINHEIRO'" [attr.aria-checked]="p.modo === 'DINHEIRO'" (click)="p.modo = 'DINHEIRO'; tocar(presentes)">Em dinheiro</button>
+                <button type="button" role="radio" [class.ativo]="p.modo === 'AMBOS'" [attr.aria-checked]="p.modo === 'AMBOS'" (click)="p.modo = 'AMBOS'; tocar(presentes)">Os dois</button>
+              </div>
+              @if (p.modo !== 'RESERVA') {
+                <div class="colab-campos">
+                  <label [for]="'pre-meta-' + i">Quanto custa</label>
+                  <span class="real"><span>R$</span>
+                    <input [id]="'pre-meta-' + i" [name]="'pre-meta-' + i" type="number" min="1" step="0.01" [(ngModel)]="p.valor_referencia" placeholder="Opcional" />
+                  </span>
+                </div>
+              }
+              <div class="colab-campos">
+                <label [for]="'pre-link-' + i">Link da loja</label>
+                <input [id]="'pre-link-' + i" [name]="'pre-link-' + i" type="url" class="link-loja" [(ngModel)]="p.link_loja" placeholder="Opcional" />
+              </div>
+            </div>
+          }
+          <button type="button" class="linha linha-acao" (click)="adicionarPresente()">Adicionar presente</button>
+        </div>
+        <p class="grupo-rodape">
+          “Levar”: o convidado reserva e ninguém mais escolhe o mesmo. “Em dinheiro”: ele manda o valor que quiser no seu PIX e você confere.
+          Os outros convidados só veem que já foi escolhido, nunca por quem.
+        </p>
+      </section>
+
+      <!-- Textos das mensagens -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Mensagens do WhatsApp</h2>
+        <div class="grupo-caixa">
+          @for (t of tiposMensagem(); track t.tipo) {
+            <div class="linha mensagem" [class.aberta]="mensagemAberta() === t.tipo">
+              <button type="button" class="mensagem-cabeca" (click)="abrirMensagem(t.tipo)" [attr.aria-expanded]="mensagemAberta() === t.tipo">
+                <span class="mensagem-titulo">
+                  <strong>{{ t.rotulo }}</strong>
+                  <span class="pequeno">{{ t.quando }}</span>
+                </span>
+                <span class="mensagem-estado" [class.personalizada]="personalizada(t.tipo)">
+                  {{ personalizada(t.tipo) ? 'Seu texto' : 'Padrão' }}
+                </span>
+              </button>
+              @if (mensagemAberta() === t.tipo) {
+                <textarea #campo [name]="'msg-' + t.tipo" rows="5" [(ngModel)]="evento.mensagens[t.tipo]" [attr.aria-label]="'Texto da mensagem: ' + t.rotulo"></textarea>
+                <div class="variaveis" aria-label="Inserir informação do evento">
+                  @for (v of variaveis; track v) {
+                    @if (v !== '{valor}' && v !== '{prazo}' || evento.tem_contribuicao) {
+                      <button type="button" class="ficha" (click)="inserirVariavel(t.tipo, v, campo)">{{ v }}</button>
+                    }
+                  }
+                </div>
+                @if (t.tipo === 'CONVITE' && evento.mensagens[t.tipo] && !evento.mensagens[t.tipo].includes('{link}')) {
+                  <p class="pequeno aviso">Sem {{ '{link}' }} o convidado não tem onde responder.</p>
+                }
+                <div class="mensagem-acoes">
+                  @if (personalizada(t.tipo)) {
+                    <button type="button" class="botao-texto" (click)="usarPadrao(t.tipo)">Voltar ao texto padrão</button>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+        <p class="grupo-rodape">
+          As palavras entre chaves viram os dados de cada convidado: {{ '{nome}' }} vira “Ana”, {{ '{link}' }} vira o link do convite.
+          No padrão o Bora alterna entre textos parecidos para o WhatsApp não achar que é spam; com o seu texto, vai sempre o mesmo.
+        </p>
+      </section>
+
       <div class="rodape-form">
         @if (erro()) {
           <p class="falha">{{ erro() }}</p>

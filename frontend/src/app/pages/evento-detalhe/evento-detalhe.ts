@@ -11,6 +11,7 @@ import {
   ContatoWhatsapp,
   ConvidadoLinha,
   Painel,
+  PresentePainel,
   StatusConvidado,
 } from '../../core/api.service';
 import { Evento, EventosService } from '../../core/eventos.service';
@@ -56,6 +57,13 @@ export class EventoDetalhe implements OnInit {
   readonly painel = signal<Painel | null>(null);
   readonly convidados = signal<ConvidadoLinha[]>([]);
   readonly comprovantes = signal<ComprovanteLinha[]>([]);
+  readonly presentes = signal<PresentePainel[]>([]);
+  /** Avisos de "já paguei" de presentes, esperando o organizador conferir no extrato. */
+  readonly presentesAConferir = computed(() =>
+    this.presentes().flatMap((p) =>
+      p.pagamentos.filter((pg) => pg.status === 'PENDENTE').map((pg) => ({ ...pg, presente: p.nome })),
+    ),
+  );
   readonly filtro = signal<Filtro>('TODOS');
   readonly busca = signal('');
   readonly erro = signal<string | null>(null);
@@ -116,16 +124,18 @@ export class EventoDetalhe implements OnInit {
 
   async recarregar() {
     try {
-      const [dados, painel, convidados, comprovantes] = await Promise.all([
+      const [dados, painel, convidados, comprovantes, presentes] = await Promise.all([
         this.eventos.carregar(this.id()),
         firstValueFrom(this.api.painel(this.id())),
         firstValueFrom(this.api.convidados(this.id())),
         firstValueFrom(this.api.comprovantes(this.id())),
+        firstValueFrom(this.api.presentesEvento(this.id())),
       ]);
       this.evento.set(dados.evento);
       this.painel.set(painel);
       this.convidados.set(convidados);
       this.comprovantes.set(comprovantes);
+      this.presentes.set(presentes);
     } catch (e) {
       this.erro.set(this.mensagem(e));
     }
@@ -253,6 +263,17 @@ export class EventoDetalhe implements OnInit {
     await this.executar(async () => {
       await firstValueFrom(this.api.recusarComprovante(this.id(), r.convidado_id));
       this.aviso.set(`Comprovante de ${r.nome} descartado.`);
+    });
+  }
+
+  // --- presentes ---
+  async decidirPresente(pg: { id: string; convidado_nome: string; valor: string; presente: string }, confirmar: boolean) {
+    if (!confirmar && !confirm(`Descartar o aviso de ${pg.convidado_nome}? Use quando o dinheiro não caiu na sua conta.`)) return;
+    await this.executar(async () => {
+      await firstValueFrom(this.api.decidirPresente(this.id(), pg.id, confirmar ? 'confirmar' : 'descartar'));
+      this.aviso.set(
+        confirmar ? `Presente de ${pg.convidado_nome} confirmado.` : `Aviso de ${pg.convidado_nome} descartado.`,
+      );
     });
   }
 

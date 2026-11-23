@@ -3,6 +3,7 @@ import { SupabaseService } from './supabase.service';
 
 export type StatusEvento = 'RASCUNHO' | 'ATIVO' | 'ENCERRADO' | 'CANCELADO';
 export type TipoColaboracao = 'FIXO' | 'RATEIO';
+export type ModoPresente = 'RESERVA' | 'DINHEIRO' | 'AMBOS';
 
 export interface Evento {
   id?: string;
@@ -17,6 +18,8 @@ export interface Evento {
   max_acompanhantes: number | null;
   prazo_pagamento: string | null;
   prazo_manual: boolean;
+  /** Textos personalizados por tipo de mensagem; tipo ausente = texto padrão. */
+  mensagens: Record<string, string>;
   status?: StatusEvento;
 }
 
@@ -46,16 +49,33 @@ export interface ItemCardapioForm {
   ordem?: number;
 }
 
+export interface PresenteForm {
+  id?: string;
+  nome: string;
+  descricao: string | null;
+  link_loja: string | null;
+  imagem_url: string | null;
+  modo: ModoPresente;
+  valor_referencia: number | null;
+  ordem?: number;
+  /** Só leitura: alguém já reservou ou avisou que pagou (não pode ser removido). */
+  escolhido?: boolean;
+}
+
 export interface EventoCompleto {
   evento: Evento;
   colaboracoes: ColaboracaoForm[];
   atracoes: AtracaoForm[];
   cardapio: ItemCardapioForm[];
+  presentes: PresenteForm[];
 }
 
 const CAMPOS_EVENTO =
   'id, nome, descricao, local_nome, endereco, mapa_url, data_hora, convite_imagem_url, ' +
-  'tem_contribuicao, max_acompanhantes, prazo_pagamento, prazo_manual, status';
+  'tem_contribuicao, max_acompanhantes, prazo_pagamento, prazo_manual, mensagens, status';
+
+const CAMPOS_PRESENTE =
+  'id, nome, descricao, link_loja, imagem_url, modo, valor_referencia, ordem, reservado_por, pagamento(status)';
 
 /** Mesmo arredondamento do backend (app/domain/valores.py): rateio sobe para o real inteiro. */
 export function valorPorPessoa(c: ColaboracaoForm): number | null {
@@ -91,18 +111,26 @@ export class EventosService {
   }
 
   async carregar(id: string): Promise<EventoCompleto> {
-    const [ev, col, atr, car] = await Promise.all([
+    const [ev, col, atr, car, pre] = await Promise.all([
       this.sb.from('evento').select(CAMPOS_EVENTO).eq('id', id).single(),
       this.sb.from('colaboracao').select('*').eq('evento_id', id).order('ordem'),
       this.sb.from('atracao').select('*').eq('evento_id', id).order('ordem'),
       this.sb.from('item_cardapio').select('*').eq('evento_id', id).order('ordem'),
+      this.sb.from('presente').select(CAMPOS_PRESENTE).eq('evento_id', id).order('ordem'),
     ]);
-    for (const r of [ev, col, atr, car]) if (r.error) throw r.error;
+    for (const r of [ev, col, atr, car, pre]) if (r.error) throw r.error;
     return {
       evento: ev.data as unknown as Evento,
       colaboracoes: (col.data ?? []).map(({ evento_id, ...c }) => c as ColaboracaoForm),
       atracoes: (atr.data ?? []).map(({ evento_id, ...a }) => a as AtracaoForm),
       cardapio: (car.data ?? []).map(({ evento_id, ...i }) => i as ItemCardapioForm),
+      presentes: (pre.data ?? []).map(({ reservado_por, pagamento, ...p }) => ({
+        ...(p as unknown as PresenteForm),
+        valor_referencia: p.valor_referencia === null ? null : Number(p.valor_referencia),
+        escolhido:
+          !!reservado_por ||
+          ((pagamento ?? []) as { status: string }[]).some((pg) => pg.status === 'PENDENTE' || pg.status === 'APROVADO'),
+      })),
     };
   }
 
@@ -129,6 +157,12 @@ export class EventosService {
     await this.sincronizar('colaboracao', eventoId, dados.evento.tem_contribuicao ? dados.colaboracoes : []);
     await this.sincronizar('atracao', eventoId, dados.atracoes);
     await this.sincronizar('item_cardapio', eventoId, dados.cardapio);
+    // Só os campos editáveis: a reserva (reservado_por) nunca é sobrescrita pelo formulário
+    await this.sincronizar(
+      'presente',
+      eventoId,
+      dados.presentes.map(({ escolhido, ...p }) => p),
+    );
     return eventoId;
   }
 
@@ -137,7 +171,7 @@ export class EventosService {
    * (Colaborações não são recriadas, para não perder o snapshot de valores dos convidados.)
    */
   private async sincronizar(
-    tabela: 'colaboracao' | 'atracao' | 'item_cardapio',
+    tabela: 'colaboracao' | 'atracao' | 'item_cardapio' | 'presente',
     eventoId: string,
     itens: { id?: string }[],
   ) {
@@ -164,12 +198,12 @@ export class EventosService {
     }
   }
 
-  /** Sobe a arte do convite no bucket público "capas" (pasta = id do organizador). */
-  async enviarArte(arquivo: File): Promise<string> {
+  /** Sobe uma imagem no bucket público "capas" (pasta = id do organizador). */
+  async enviarArte(arquivo: File, prefixo = 'convite'): Promise<string> {
     const usuario = (await this.sb.auth.getUser()).data.user;
     if (!usuario) throw new Error('Sessão expirada');
     const ext = arquivo.name.split('.').pop()?.toLowerCase() ?? 'jpg';
-    const caminho = `${usuario.id}/convite-${crypto.randomUUID()}.${ext}`;
+    const caminho = `${usuario.id}/${prefixo}-${crypto.randomUUID()}.${ext}`;
     const { error } = await this.sb.storage
       .from('capas')
       .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false });

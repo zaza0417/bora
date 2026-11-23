@@ -539,6 +539,69 @@
   gap: 10px;
 }
 
+/* ---------- presentes ---------- */
+.a-conferir {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: var(--raio-grupo);
+  background: var(--marca-suave);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conferir-lista,
+.presentes-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--linha-suave);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+}
+
+.conferir-lista li {
+  flex-wrap: wrap;
+  border-bottom-color: color-mix(in srgb, var(--tinta) 10%, transparent);
+}
+
+.conf-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  strong {
+    font-weight: 500;
+  }
+}
+
+.conf-acoes {
+  display: flex;
+  gap: 8px;
+
+  button {
+    min-height: 36px;
+    font-size: 0.94rem;
+  }
+}
+
+.presente-valor {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 /* ---------- contatos do WhatsApp ---------- */
 .folha-contatos {
   max-height: min(720px, calc(100dvh - 32px));

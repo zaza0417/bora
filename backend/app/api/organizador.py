@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_session
-from app.domain.mensagens import TipoMensagem
+from app.domain.mensagens import TEMPLATES_PADRAO, TipoMensagem
 from app.domain.prazo import calcular_prazo
 from app.domain.telefone import TelefoneInvalido, normalizar_telefone
 from app.domain.valores import Colaboracao, TipoColaboracao, valor_por_pessoa
@@ -53,6 +53,12 @@ class ConvidadoOut(BaseModel):
     status: str
     valor_por_pessoa: Decimal
     link: str
+
+
+@router.get("/mensagens/padrao")
+async def mensagens_padrao(org: OrganizadorAtual) -> dict[str, list[str]]:
+    """Textos padrão de cada mensagem, para o organizador partir deles ao personalizar."""
+    return {tipo.value: textos for tipo, textos in TEMPLATES_PADRAO.items()}
 
 
 async def _evento_do_organizador(sessao: AsyncSession, evento_id: UUID, org_id: UUID):

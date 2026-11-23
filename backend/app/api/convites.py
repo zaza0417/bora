@@ -26,6 +26,7 @@ from app.domain.prazo import prazo_vencido
 from app.integrations.mercadopago import ErroMercadoPago, MercadoPagoClient
 from app.security import descriptografar
 from app.services.cobranca import link_whatsapp_comprovante, modo_pagamento
+from app.services.presentes import pix_do_organizador, presentes_do_convidado
 
 router = APIRouter(prefix="/convites", tags=["convidado"])
 Sessao = Annotated[AsyncSession, Depends(get_session)]
@@ -42,6 +43,21 @@ class ItemSimples(BaseModel):
 class ColaboracaoOut(BaseModel):
     descricao: str
     valor_por_pessoa: Decimal
+
+
+class PresenteOut(BaseModel):
+    id: UUID
+    nome: str
+    descricao: str | None
+    link_loja: str | None
+    imagem_url: str | None
+    modo: str  # RESERVA | DINHEIRO | AMBOS
+    valor_referencia: Decimal | None
+    reservado: bool  # por alguém (não diz quem)
+    reservado_por_mim: bool
+    arrecadado: Decimal
+    meu_valor_a_conferir: Decimal  # "já paguei" esperando o organizador
+    meu_valor_confirmado: Decimal
 
 
 class ConviteOut(BaseModel):
@@ -67,6 +83,8 @@ class ConviteOut(BaseModel):
     comprovante_recebido: bool
     prazo_pagamento: date | None
     prazo_vencido: bool
+    presentes: list[PresenteOut] = []
+    presente_em_dinheiro: bool = False  # organizador tem chave PIX para receber
 
 
 class RespostaIn(BaseModel):
@@ -183,6 +201,10 @@ async def ver_convite(token: str, sessao: Sessao) -> ConviteOut:
         comprovante_recebido=c["comprovante_recebido_em"] is not None,
         prazo_pagamento=prazo,
         prazo_vencido=bool(prazo and prazo_vencido(prazo, _hoje())),
+        presentes=[
+            PresenteOut(**p) for p in await presentes_do_convidado(sessao, c["evento_id"], c["id"])
+        ],
+        presente_em_dinheiro=await pix_do_organizador(sessao, c["organizador_id"]) is not None,
     )
 
 

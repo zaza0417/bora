@@ -33,6 +33,13 @@
               Te esperamos lá{{ c.qtd_acompanhantes ? ', você e mais ' + c.qtd_acompanhantes : '' }}.
               Um dia antes chega um lembrete no seu WhatsApp.
             </p>
+            <div class="agenda">
+              <button type="button" class="botao-secundario" (click)="adicionarAgenda()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>
+                Adicionar à agenda
+              </button>
+              <a class="botao-texto" [href]="googleAgenda()" target="_blank" rel="noopener">Usar o Google Agenda</a>
+            </div>
           </div>
         }
 
@@ -205,6 +212,95 @@
         <ul class="lista">
           @for (i of c.cardapio; track i.nome) {
             <li><strong>{{ i.nome }}</strong>@if (i.descricao) { <span class="sub">{{ i.descricao }}</span> }</li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (c.presentes.length) {
+      <section class="bloco presentes">
+        <h3>Lista de presentes</h3>
+        <p class="sub">Se quiser dar um presente, escolha aqui. É opcional e não muda sua presença.</p>
+        <ul class="lista-presentes">
+          @for (p of c.presentes; track p.id) {
+            <li [class.escolhido]="p.reservado && !p.reservado_por_mim && !podeDarDinheiro(p)" [class.meu]="p.reservado_por_mim">
+              <div class="presente-linha">
+                @if (p.imagem_url) {
+                  <img class="presente-foto" [src]="p.imagem_url" alt="" />
+                } @else {
+                  <span class="presente-foto sem-foto" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-5-3.5-5-1.2C7 7 9 7 12 7Zm0 0c1.5-3 5-3.5 5-1.2C17 7 15 7 12 7Z" /></svg>
+                  </span>
+                }
+                <div class="presente-info">
+                  <strong>{{ p.nome }}</strong>
+                  @if (p.descricao) { <span class="sub">{{ p.descricao }}</span> }
+                  @if (p.link_loja) {
+                    <a [href]="p.link_loja" target="_blank" rel="noopener nofollow">Ver na loja</a>
+                  }
+                </div>
+              </div>
+
+              @if (podeDarDinheiro(p) && p.valor_referencia) {
+                <div class="barra" role="progressbar" [attr.aria-valuenow]="+p.arrecadado" [attr.aria-valuemax]="+p.valor_referencia"
+                  [attr.aria-label]="'Arrecadado para ' + p.nome">
+                  <div [style.width.%]="progresso(p)"></div>
+                </div>
+                <span class="sub pequeno">
+                  {{ +p.arrecadado | currency: 'BRL' : 'symbol' : '1.0-0' }} de {{ +p.valor_referencia | currency: 'BRL' : 'symbol' : '1.0-0' }}
+                </span>
+              }
+
+              @if (+p.meu_valor_confirmado > 0) {
+                <p class="presente-nota ok">Recebido: {{ +p.meu_valor_confirmado | currency: 'BRL' }}. Obrigado!</p>
+              }
+              @if (+p.meu_valor_a_conferir > 0) {
+                <p class="presente-nota">Você avisou que mandou {{ +p.meu_valor_a_conferir | currency: 'BRL' }}. Quem convidou vai conferir.</p>
+              }
+
+              <div class="presente-acoes">
+                @if (podeReservar(p)) {
+                  @if (p.reservado_por_mim) {
+                    <span class="selo-meu">Você vai levar este</span>
+                    <button type="button" class="botao-texto" (click)="desistir(p)" [disabled]="ocupadoPresente() === p.id">Desistir</button>
+                  } @else if (p.reservado) {
+                    <span class="selo-escolhido">Já escolhido</span>
+                  } @else {
+                    <button type="button" class="botao-secundario" (click)="reservar(p)" [disabled]="ocupadoPresente() === p.id">Eu levo</button>
+                  }
+                }
+                @if (podeDarDinheiro(p)) {
+                  <button type="button" class="botao-secundario" (click)="abrirDinheiro(p)" [attr.aria-expanded]="presenteEmDinheiro() === p.id">
+                    {{ presenteEmDinheiro() === p.id ? 'Fechar' : 'Dar em dinheiro' }}
+                  </button>
+                }
+              </div>
+
+              @if (presenteEmDinheiro() === p.id) {
+                <div class="presente-pix">
+                  @if (pixPresente(); as pix) {
+                    <p class="sub">Copie o PIX de {{ +pix.valor | currency: 'BRL' }} e pague no app do seu banco.
+                      @if (pix.pix_nome) { O recebedor aparece como {{ pix.pix_nome }}. }
+                    </p>
+                    <button type="button" class="botao-grande botao-cheio" (click)="copiarPixPresente()">
+                      {{ pixPresenteCopiado() ? 'Código copiado' : 'Copiar código PIX' }}
+                    </button>
+                    <button type="button" class="botao-grande botao-secundario" (click)="avisarPago(p)" [disabled]="ocupadoPresente() === p.id">
+                      Já paguei
+                    </button>
+                    <p class="chave">Prefere digitar? Chave <strong>{{ pix.pix_chave }}</strong>.</p>
+                  } @else {
+                    <form class="valor-presente" (ngSubmit)="gerarPixPresente(p)">
+                      <label [for]="'valor-' + p.id">Quanto você quer dar?</label>
+                      <span class="real"><span>R$</span>
+                        <input [id]="'valor-' + p.id" name="valor" type="number" inputmode="decimal" min="1" step="0.01" [(ngModel)]="valorPresente" placeholder="50" required />
+                      </span>
+                      <button type="submit" class="botao-cheio" [disabled]="!valorPresente || valorPresente < 1 || ocupadoPresente() === p.id">Gerar PIX</button>
+                    </form>
+                  }
+                </div>
+              }
+            </li>
           }
         </ul>
       </section>
