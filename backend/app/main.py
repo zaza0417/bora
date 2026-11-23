@@ -9,7 +9,16 @@ from app.config import get_settings
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 settings = get_settings()
-app = FastAPI(title="Bora API", version="0.1.0")
+# Em produção a documentação interativa (/docs, /redoc, /openapi.json) fica desligada:
+# ela mostra todas as rotas da API para qualquer um.
+_docs = settings.ambiente != "prod"
+app = FastAPI(
+    title="Bora API",
+    version="0.1.0",
+    docs_url="/docs" if _docs else None,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 
 app.add_middleware(
     CORSMiddleware,

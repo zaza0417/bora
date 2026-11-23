@@ -1,33 +1,64 @@
 import { Injectable, signal } from '@angular/core';
-import { createClient, Session, SupabaseClient } from '@supabase/supabase-js';
+import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
-/** Login do organizador + acesso direto às tabelas protegidas por RLS. */
+/** Há uma sessão salva pelo Supabase neste navegador? (sem carregar a biblioteca) */
+function temSessaoSalva(): boolean {
+  try {
+    return Object.keys(localStorage).some((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Login do organizador + acesso direto às tabelas protegidas por RLS.
+ *
+ * A biblioteca do Supabase é pesada e o convidado não precisa dela, então só é
+ * baixada quando há login salvo ou quando uma tela do organizador pede.
+ */
 @Injectable({ providedIn: 'root' })
 export class SupabaseService {
-  readonly client: SupabaseClient = createClient(environment.supabaseUrl, environment.supabaseAnonKey);
   readonly session = signal<Session | null>(null);
-  private readonly pronto: Promise<void>;
+  private cliente?: SupabaseClient;
+  private carregando?: Promise<SupabaseClient>;
 
   constructor() {
-    this.pronto = this.client.auth.getSession().then(({ data }) => this.session.set(data.session));
-    this.client.auth.onAuthStateChange((_evento, sessao) => this.session.set(sessao));
+    if (temSessaoSalva()) void this.carregar();
+  }
+
+  /** Cliente já carregado. Use só depois do authGuard (ou de `carregar()`). */
+  get client(): SupabaseClient {
+    if (!this.cliente) throw new Error('Supabase ainda não foi carregado');
+    return this.cliente;
+  }
+
+  carregar(): Promise<SupabaseClient> {
+    this.carregando ??= import('@supabase/supabase-js').then(async ({ createClient }) => {
+      const c = createClient(environment.supabaseUrl, environment.supabaseAnonKey);
+      const { data } = await c.auth.getSession();
+      this.session.set(data.session);
+      c.auth.onAuthStateChange((_evento, sessao) => this.session.set(sessao));
+      this.cliente = c;
+      return c;
+    });
+    return this.carregando;
   }
 
   async sessaoAtual(): Promise<Session | null> {
-    await this.pronto;
+    await this.carregar();
     return this.session();
   }
 
-  entrar(email: string, senha: string) {
-    return this.client.auth.signInWithPassword({ email, password: senha });
+  async entrar(email: string, senha: string) {
+    return (await this.carregar()).auth.signInWithPassword({ email, password: senha });
   }
 
-  cadastrar(email: string, senha: string, nome: string) {
-    return this.client.auth.signUp({ email, password: senha, options: { data: { nome } } });
+  async cadastrar(email: string, senha: string, nome: string) {
+    return (await this.carregar()).auth.signUp({ email, password: senha, options: { data: { nome } } });
   }
 
-  sair() {
-    return this.client.auth.signOut();
+  async sair() {
+    return (await this.carregar()).auth.signOut();
   }
 }

@@ -36,8 +36,10 @@ services:
     depends_on: [evolution]
 
   evolution:
-    # Fixe uma versão testada em produção (ex.: :v2.3.x) em vez de latest.
-    image: evoapicloud/evolution-api:latest
+    # Versão fixa: a 2.3.7 (build de 06/05/2026) que está em produção e foi testada
+    # (convite, comprovante, contatos). A tag :v2.3.7 do Docker Hub é outra build, mais
+    # antiga, por isso o digest. Para atualizar, teste a nova versão antes e troque aqui.
+    image: evoapicloud/evolution-api@sha256:966625532d9076a2381e973a271307d107e6f070450de3abeeea8bd18be07252
     restart: unless-stopped
     expose: ["8080"]
     # Para rodar localmente (fora do compose), exponha em outra porta para não

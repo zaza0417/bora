@@ -75,7 +75,11 @@ export function comTaxa(valor: number, taxa = 0.0099): number {
  */
 @Injectable({ providedIn: 'root' })
 export class EventosService {
-  private readonly sb = inject(SupabaseService).client;
+  private readonly supabase = inject(SupabaseService);
+  // Telas que usam este serviço passam pelo authGuard, que já carregou o cliente.
+  private get sb() {
+    return this.supabase.client;
+  }
 
   async listar() {
     const { data, error } = await this.sb
