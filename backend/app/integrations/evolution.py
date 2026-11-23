@@ -6,11 +6,13 @@ TODO: conferir os endpoints com a versão da Evolution usada no docker-compose.
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 
 import httpx
 
 from app.config import get_settings
+from app.domain.telefone import TelefoneInvalido, normalizar_telefone
 
 
 class ErroEvolution(Exception):
@@ -129,12 +131,76 @@ class EvolutionClient:
             {"message": {"key": chave_mensagem}, "convertToMp4": False},
         )
 
+    async def listar_contatos(self, instancia: str) -> list[dict]:
+        """Contatos que a Evolution sincronizou do WhatsApp conectado (formato bruto)."""
+        dados = await self._req("POST", f"/chat/findContacts/{instancia}", {"where": {}})
+        if isinstance(dados, dict):  # algumas versões embrulham a lista
+            dados = dados.get("contacts") or dados.get("data") or []
+        return [c for c in dados if isinstance(c, dict)] if isinstance(dados, list) else []
+
     async def desconectar(self, instancia: str) -> None:
         """Faz logout do número e apaga a instância."""
         try:
             await self._req("DELETE", f"/instance/logout/{instancia}")
         finally:
             await self._req("DELETE", f"/instance/delete/{instancia}")
+
+
+# ---------------------------------------------------------------------------
+# Contatos: limpeza da lista bruta (função pura, testada em tests/)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class ContatoWhatsapp:
+    nome: str | None  # nome salvo na agenda ou o do perfil; pode faltar
+    telefone_e164: str
+
+
+def interpretar_contatos(
+    brutos: list[dict], numero_proprio: str | None = None
+) -> list[ContatoWhatsapp]:
+    """Só contatos individuais com número válido, sem repetidos e sem o próprio organizador.
+
+    Ficam de fora grupos (@g.us), listas de transmissão, status e contatos que o WhatsApp
+    só identifica por LID (@lid), porque esses não trazem o número.
+    """
+    proprio = f"+{numero_proprio.lstrip('+')}" if numero_proprio else None
+    por_telefone: dict[str, ContatoWhatsapp] = {}
+    for c in brutos:
+        jid = str(c.get("remoteJid") or c.get("id") or "")
+        if not jid.endswith("@s.whatsapp.net"):
+            continue
+        try:
+            telefone = normalizar_telefone("+" + jid.split("@", 1)[0].split(":", 1)[0])
+        except TelefoneInvalido:
+            continue
+        if telefone == proprio:
+            continue
+        nome = next(
+            (
+                str(v).strip()
+                for v in (c.get("name"), c.get("verifiedName"), c.get("pushName"), c.get("notify"))
+                if v and str(v).strip() and not _parece_numero(str(v))
+            ),
+            None,
+        )
+        atual = por_telefone.get(telefone)
+        if atual is None or (atual.nome is None and nome):
+            por_telefone[telefone] = ContatoWhatsapp(nome=nome, telefone_e164=telefone)
+    # Com nome primeiro, em ordem alfabética; sem nome no fim, por número
+    return sorted(
+        por_telefone.values(),
+        key=lambda x: (x.nome is None, _sem_acento(x.nome or ""), x.telefone_e164),
+    )
+
+
+def _parece_numero(texto: str) -> bool:
+    """WhatsApp sem nome mostra o próprio número (ex.: '+55 61 99123-4567')."""
+    return not any(ch.isalpha() for ch in texto)
+
+
+def _sem_acento(texto: str) -> str:
+    decomposto = unicodedata.normalize("NFD", texto.casefold())
+    return "".join(ch for ch in decomposto if not unicodedata.combining(ch))
 
 
 # ---------------------------------------------------------------------------

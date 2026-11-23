@@ -143,19 +143,10 @@ async def ativar_evento(evento_id: UUID, org: OrganizadorAtual, sessao: Sessao) 
     return {"status": "ATIVO", "prazo_pagamento": prazo, "convites_enfileirados": len(pendentes)}
 
 
-@router.post("/eventos/{evento_id}/convidados", response_model=ConvidadoOut, status_code=201)
-async def adicionar_convidado(
-    evento_id: UUID, dados: ConvidadoIn, org: OrganizadorAtual, sessao: Sessao
-) -> ConvidadoOut:
-    ev = await _evento_do_organizador(sessao, evento_id, org.id)
-    if ev["status"] in ("CANCELADO", "ENCERRADO"):
-        raise HTTPException(409, f"Evento está {ev['status']}")
-    try:
-        telefone = normalizar_telefone(dados.telefone)
-    except TelefoneInvalido as e:
-        raise HTTPException(422, str(e)) from e
-
-    # Snapshot do valor por pessoa de cada colaboração (RF-COL-04)
+async def _snapshot_colaboracoes(sessao: AsyncSession, ev) -> dict[UUID, Decimal]:
+    """Snapshot do valor por pessoa de cada colaboração (RF-COL-04)."""
+    if not ev["tem_contribuicao"]:
+        return {}
     colabs = (
         (
             await sessao.execute(
@@ -163,51 +154,44 @@ async def adicionar_convidado(
                 select id, tipo, valor_por_pessoa, meta, pessoas_estimadas
                   from colaboracao where evento_id = :id
             """),
-                {"id": evento_id},
+                {"id": ev["id"]},
             )
         )
         .mappings()
         .all()
     )
-    snapshot = (
-        {
-            c["id"]: valor_por_pessoa(
-                Colaboracao(
-                    tipo=TipoColaboracao(c["tipo"]),
-                    valor_por_pessoa=c["valor_por_pessoa"],
-                    meta=c["meta"],
-                    pessoas_estimadas=c["pessoas_estimadas"],
-                )
+    return {
+        c["id"]: valor_por_pessoa(
+            Colaboracao(
+                tipo=TipoColaboracao(c["tipo"]),
+                valor_por_pessoa=c["valor_por_pessoa"],
+                meta=c["meta"],
+                pessoas_estimadas=c["pessoas_estimadas"],
             )
-            for c in colabs
-        }
-        if ev["tem_contribuicao"]
-        else {}
-    )
+        )
+        for c in colabs
+    }
+
+
+async def _inserir_convidado(
+    sessao: AsyncSession, ev, nome: str, telefone: str, snapshot: dict[UUID, Decimal]
+) -> ConvidadoOut:
+    """Grava o convidado com o snapshot e, se o evento já está ativo, enfileira o convite.
+
+    Levanta IntegrityError se o telefone já estiver na lista do evento.
+    """
     total = sum(snapshot.values(), Decimal("0.00"))
     token = gerar_token_convite()
-
-    try:
-        convidado_id = (
-            await sessao.execute(
-                text("""
-                    insert into convidado (evento_id, nome, telefone_e164, token, valor_por_pessoa)
-                    values (:ev, :nome, :tel, :token, :vpp)
-                    returning id
-                """),
-                {
-                    "ev": evento_id,
-                    "nome": dados.nome.strip(),
-                    "tel": telefone,
-                    "token": token,
-                    "vpp": total,
-                },
-            )
-        ).scalar_one()
-    except IntegrityError as e:
-        await sessao.rollback()
-        raise HTTPException(409, "Este telefone já está na lista do evento") from e
-
+    convidado_id = (
+        await sessao.execute(
+            text("""
+                insert into convidado (evento_id, nome, telefone_e164, token, valor_por_pessoa)
+                values (:ev, :nome, :tel, :token, :vpp)
+                returning id
+            """),
+            {"ev": ev["id"], "nome": nome, "tel": telefone, "token": token, "vpp": total},
+        )
+    ).scalar_one()
     for colab_id, valor in snapshot.items():
         await sessao.execute(
             text("""
@@ -216,16 +200,85 @@ async def adicionar_convidado(
             """),
             {"c": convidado_id, "col": colab_id, "v": valor},
         )
-
     if ev["status"] == "ATIVO":  # RF-CNV-05: convite sai na hora
         await enfileirar_mensagem(sessao, convidado_id, TipoMensagem.CONVITE)
-    await sessao.commit()
-
     return ConvidadoOut(
         id=convidado_id,
-        nome=dados.nome.strip(),
+        nome=nome,
         telefone_e164=telefone,
         status="CONVIDADO",
         valor_por_pessoa=total,
         link=f"{get_settings().url_publica_front.rstrip('/')}/c/{token}",
     )
+
+
+async def _evento_aberto(sessao: AsyncSession, evento_id: UUID, org_id: UUID):
+    ev = await _evento_do_organizador(sessao, evento_id, org_id)
+    if ev["status"] in ("CANCELADO", "ENCERRADO"):
+        raise HTTPException(409, f"Evento está {ev['status']}")
+    return ev
+
+
+@router.post("/eventos/{evento_id}/convidados", response_model=ConvidadoOut, status_code=201)
+async def adicionar_convidado(
+    evento_id: UUID, dados: ConvidadoIn, org: OrganizadorAtual, sessao: Sessao
+) -> ConvidadoOut:
+    ev = await _evento_aberto(sessao, evento_id, org.id)
+    try:
+        telefone = normalizar_telefone(dados.telefone)
+    except TelefoneInvalido as e:
+        raise HTTPException(422, str(e)) from e
+    snapshot = await _snapshot_colaboracoes(sessao, ev)
+    try:
+        out = await _inserir_convidado(sessao, ev, dados.nome.strip(), telefone, snapshot)
+    except IntegrityError as e:
+        await sessao.rollback()
+        raise HTTPException(409, "Este telefone já está na lista do evento") from e
+    await sessao.commit()
+    return out
+
+
+class LoteIn(BaseModel):
+    convidados: list[ConvidadoIn] = Field(min_length=1, max_length=500)
+
+
+class LoteOut(BaseModel):
+    adicionados: int
+    ja_na_lista: int
+    invalidos: list[str]  # nomes cujo telefone não foi aceito
+
+
+@router.post("/eventos/{evento_id}/convidados/lote", response_model=LoteOut, status_code=201)
+async def adicionar_convidados_lote(
+    evento_id: UUID, dados: LoteIn, org: OrganizadorAtual, sessao: Sessao
+) -> LoteOut:
+    """Vários convidados de uma vez (ex.: escolhidos nos contatos do WhatsApp).
+
+    Quem já está na lista é ignorado, sem erro.
+    """
+    ev = await _evento_aberto(sessao, evento_id, org.id)
+    existentes = set(
+        (
+            await sessao.execute(
+                text("select telefone_e164 from convidado where evento_id = :ev"), {"ev": evento_id}
+            )
+        )
+        .scalars()
+        .all()
+    )
+    snapshot = await _snapshot_colaboracoes(sessao, ev)
+    adicionados, ja_na_lista, invalidos = 0, 0, []
+    for c in dados.convidados:
+        try:
+            telefone = normalizar_telefone(c.telefone)
+        except TelefoneInvalido:
+            invalidos.append(c.nome.strip())
+            continue
+        if telefone in existentes:
+            ja_na_lista += 1
+            continue
+        await _inserir_convidado(sessao, ev, c.nome.strip(), telefone, snapshot)
+        existentes.add(telefone)
+        adicionados += 1
+    await sessao.commit()
+    return LoteOut(adicionados=adicionados, ja_na_lista=ja_na_lista, invalidos=invalidos)

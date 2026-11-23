@@ -275,6 +275,20 @@
   }
 }
 
+.importar {
+  margin-top: 8px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .nota-convite {
   margin-top: -4px;
 }
@@ -523,6 +537,80 @@
   display: grid;
   grid-template-columns: 1fr 1.4fr;
   gap: 10px;
+}
+
+/* ---------- contatos do WhatsApp ---------- */
+.folha-contatos {
+  max-height: min(720px, calc(100dvh - 32px));
+}
+
+.contatos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 120px;
+  border-radius: var(--raio-grupo);
+  background: var(--superficie);
+
+  li {
+    border-bottom: 1px solid var(--linha-suave);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    &.marcado {
+      background: var(--marca-suave);
+    }
+
+    &.ja {
+      opacity: 0.55;
+    }
+
+    &.vazio {
+      padding: 16px;
+      color: var(--tinta-2);
+    }
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+
+  input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    accent-color: var(--marca);
+  }
+
+  .contato-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    strong {
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .nome-contato {
+    margin: 0 14px 10px 46px;
+    width: calc(100% - 60px);
+    min-height: 38px;
+  }
+}
+
+.aviso-nome {
+  color: var(--alerta);
 }
 
 @keyframes folha-sobe {

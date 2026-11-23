@@ -154,6 +154,10 @@
               <input id="tel-conv" class="campo" name="tel" [(ngModel)]="novoTelefone" placeholder="(61) 99999-9999" inputmode="tel" required />
               <button type="submit" [disabled]="ocupado() || !novoNome.trim() || !novoTelefone.trim()">Adicionar</button>
             </form>
+            <button type="button" class="botao-secundario importar" (click)="abrirImportar()" [disabled]="ocupado()">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a4 4 0 1 0-8 0M4 20a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /><circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.8" /></svg>
+              Escolher dos contatos do WhatsApp
+            </button>
             <p class="pequeno nota-convite">
               {{ ev.status === 'ATIVO' ? 'O convite sai pelo seu WhatsApp assim que você adiciona.' : 'Os convites saem quando você tocar em Enviar convites.' }}
             </p>
@@ -271,6 +275,62 @@
           <div class="folha-botoes">
             <button type="button" class="botao-secundario" (click)="baixaDe.set(null)">Voltar</button>
             <button type="submit" [disabled]="ocupado()">Confirmar presença</button>
+          </div>
+        </form>
+      </div>
+    }
+
+    <!-- Escolher convidados nos contatos do WhatsApp -->
+    @if (importando()) {
+      <div class="fundo-folha" (click)="fecharImportar()">
+        <form class="folha folha-contatos" (click)="$event.stopPropagation()" (ngSubmit)="importar()">
+          <h2>Contatos do WhatsApp</h2>
+
+          @if (erroContatos()) {
+            <p class="falha">{{ erroContatos() }}</p>
+            <a class="botao botao-secundario" routerLink="/configuracoes">Ir para Configurações</a>
+          } @else if (contatos() === null) {
+            <p class="sub">Buscando seus contatos…</p>
+          } @else if (contatos()!.length === 0) {
+            <p class="sub">Nenhum contato chegou ainda. Logo depois de conectar, o WhatsApp leva alguns minutos para sincronizar. Tente de novo daqui a pouco.</p>
+          } @else {
+            <input class="campo" name="busca-contato" placeholder="Buscar nome ou número" aria-label="Buscar contato"
+              [ngModel]="buscaContato()" (ngModelChange)="buscaContato.set($event)" autocomplete="off" />
+
+            <ul class="contatos">
+              @for (c of contatosVisiveis(); track c.telefone_e164) {
+                @let ja = jaNaLista().has(c.telefone_e164);
+                @let marcado = selecionados().has(c.telefone_e164);
+                <li [class.marcado]="marcado" [class.ja]="ja">
+                  <label>
+                    <input type="checkbox" [checked]="marcado || ja" [disabled]="ja" (change)="alternar(c)" />
+                    <span class="contato-info">
+                      <strong>{{ c.nome ?? telefoneLegivel(c.telefone_e164) }}</strong>
+                      <span class="pequeno">{{ ja ? 'Já está na lista' : (c.nome ? telefoneLegivel(c.telefone_e164) : 'Sem nome no WhatsApp') }}</span>
+                    </span>
+                  </label>
+                  @if (marcado && !c.nome) {
+                    <input class="campo nome-contato" [name]="'nome-' + c.telefone_e164" placeholder="Nome do convidado" aria-label="Nome do convidado"
+                      [ngModel]="selecionados().get(c.telefone_e164)" (ngModelChange)="nomear(c.telefone_e164, $event)" />
+                  }
+                </li>
+              } @empty {
+                <li class="vazio">Ninguém com esse nome ou número.</li>
+              }
+            </ul>
+            @if (contatosEncontrados().length > contatosVisiveis().length) {
+              <p class="pequeno">Mostrando {{ contatosVisiveis().length }} de {{ contatosEncontrados().length }}. Busque para achar os outros.</p>
+            }
+            @if (faltaNome()) {
+              <p class="pequeno aviso-nome">Dê um nome a quem está sem, para o convite chegar certinho.</p>
+            }
+          }
+
+          <div class="folha-botoes">
+            <button type="button" class="botao-secundario" (click)="fecharImportar()">Voltar</button>
+            <button type="submit" [disabled]="ocupado() || selecionados().size === 0 || faltaNome()">
+              {{ selecionados().size ? 'Adicionar ' + selecionados().size : 'Adicionar' }}
+            </button>
           </div>
         </form>
       </div>

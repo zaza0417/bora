@@ -101,6 +101,17 @@ export interface StatusWhatsapp {
   qr_base64: string | null;
 }
 
+export interface ContatoWhatsapp {
+  nome: string | null;
+  telefone_e164: string;
+}
+
+export interface ResultadoLote {
+  adicionados: number;
+  ja_na_lista: number;
+  invalidos: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
@@ -140,6 +151,10 @@ export class ApiService {
 
   adicionarConvidado(eventoId: string, nome: string, telefone: string) {
     return this.http.post<{ id: string; link: string }>(`${this.base}/eventos/${eventoId}/convidados`, { nome, telefone });
+  }
+
+  adicionarConvidados(eventoId: string, convidados: { nome: string; telefone: string }[]) {
+    return this.http.post<ResultadoLote>(`${this.base}/eventos/${eventoId}/convidados/lote`, { convidados });
   }
 
   ativarEvento(eventoId: string) {
@@ -203,6 +218,10 @@ export class ApiService {
 
   whatsappStatus() {
     return this.http.get<StatusWhatsapp>(`${this.base}/integracoes/whatsapp/status`);
+  }
+
+  whatsappContatos() {
+    return this.http.get<ContatoWhatsapp[]>(`${this.base}/integracoes/whatsapp/contatos`);
   }
 
   whatsappDesconectar() {

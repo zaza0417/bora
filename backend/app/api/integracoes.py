@@ -8,6 +8,7 @@ Mercado Pago
 WhatsApp
   POST   /integracoes/whatsapp/conectar      → cria/reabre a instância e devolve o QR Code
   GET    /integracoes/whatsapp/status        → estado atual (+ QR enquanto não conecta)
+  GET    /integracoes/whatsapp/contatos      → contatos do número conectado (não são gravados)
   DELETE /integracoes/whatsapp               → desconecta o número
 """
 
@@ -28,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db import get_session
 from app.integrations import mercadopago as mp
-from app.integrations.evolution import ErroEvolution, EvolutionClient
+from app.integrations.evolution import ErroEvolution, EvolutionClient, interpretar_contatos
 from app.security import (
     OrganizadorAtual,
     criptografar,
@@ -225,6 +226,47 @@ async def whatsapp_status(org: OrganizadorAtual, sessao: Sessao) -> WhatsappOut:
         await _gravar_whatsapp(sessao, org.id, row["instancia"], estado, numero)
         await sessao.commit()
     return WhatsappOut(status=estado, numero=numero, qr_base64=qr)
+
+
+class ContatoOut(BaseModel):
+    nome: str | None
+    telefone_e164: str
+
+
+@router.get("/whatsapp/contatos", response_model=list[ContatoOut])
+async def whatsapp_contatos(org: OrganizadorAtual, sessao: Sessao) -> list[ContatoOut]:
+    """Contatos do WhatsApp conectado, para escolher convidados.
+
+    Buscados na hora e não gravados no Bora: só os escolhidos viram convidados.
+    """
+    row = (
+        (
+            await sessao.execute(
+                text(
+                    "select instancia, numero from integracao_whatsapp where organizador_id = :org"
+                ),
+                {"org": org.id},
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        raise HTTPException(409, "Conecte seu WhatsApp em Configurações para ver seus contatos")
+    evo = EvolutionClient.from_settings()
+    try:
+        if await evo.estado(row["instancia"]) != "open":
+            raise HTTPException(
+                409, "Seu WhatsApp está desconectado. Conecte de novo em Configurações"
+            )
+        brutos = await evo.listar_contatos(row["instancia"])
+    except ErroEvolution as e:
+        log.error("Evolution falhou ao listar contatos: %s", e)
+        raise HTTPException(502, "Não foi possível buscar seus contatos no WhatsApp") from e
+    return [
+        ContatoOut(nome=c.nome, telefone_e164=c.telefone_e164)
+        for c in interpretar_contatos(brutos, row["numero"])
+    ]
 
 
 @router.delete("/whatsapp", status_code=204)

@@ -5,10 +5,33 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Topo } from '../../shared/topo';
 import { firstValueFrom } from 'rxjs';
-import { ApiService, ComprovanteLinha, ConvidadoLinha, Painel, StatusConvidado } from '../../core/api.service';
+import {
+  ApiService,
+  ComprovanteLinha,
+  ContatoWhatsapp,
+  ConvidadoLinha,
+  Painel,
+  StatusConvidado,
+} from '../../core/api.service';
 import { Evento, EventosService } from '../../core/eventos.service';
 
 type Filtro = 'TODOS' | StatusConvidado;
+
+/** Quantos contatos aparecem de uma vez; acima disso, a busca refina. */
+const LIMITE_CONTATOS = 200;
+
+function semAcento(texto: string) {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/** '+5561991234567' → '(61) 99123-4567'; outros países ficam como vieram. */
+export function telefoneLegivel(e164: string) {
+  const m = /^\+55(\d{2})(\d{4,5})(\d{4})$/.exec(e164);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : e164;
+}
 
 export const ROTULO_STATUS: Record<StatusConvidado, string> = {
   CONVIDADO: 'Convidado',
@@ -42,6 +65,31 @@ export class EventoDetalhe implements OnInit {
   // Formulário de novo convidado
   novoNome = '';
   novoTelefone = '';
+
+  // Importar dos contatos do WhatsApp
+  readonly importando = signal(false);
+  readonly contatos = signal<ContatoWhatsapp[] | null>(null);
+  readonly erroContatos = signal<string | null>(null);
+  readonly buscaContato = signal('');
+  /** telefone → nome escolhido (contatos sem nome recebem um aqui) */
+  readonly selecionados = signal(new Map<string, string>());
+  readonly telefoneLegivel = telefoneLegivel;
+
+  readonly jaNaLista = computed(() => new Set(this.convidados().map((c) => c.telefone_e164)));
+
+  readonly contatosEncontrados = computed(() => {
+    const termo = semAcento(this.buscaContato().trim());
+    const digitos = termo.replace(/\D/g, '');
+    const todos = this.contatos() ?? [];
+    if (!termo) return todos;
+    return todos.filter(
+      (c) => (c.nome && semAcento(c.nome).includes(termo)) || (digitos.length >= 3 && c.telefone_e164.includes(digitos)),
+    );
+  });
+
+  readonly contatosVisiveis = computed(() => this.contatosEncontrados().slice(0, LIMITE_CONTATOS));
+
+  readonly faltaNome = computed(() => [...this.selecionados().values()].some((n) => !n.trim()));
 
   // Baixa manual
   readonly baixaDe = signal<ConvidadoLinha | null>(null);
@@ -118,6 +166,54 @@ export class EventoDetalhe implements OnInit {
       );
       this.novoNome = '';
       this.novoTelefone = '';
+    });
+  }
+
+  // --- importar do WhatsApp ---
+  async abrirImportar() {
+    this.importando.set(true);
+    this.buscaContato.set('');
+    this.selecionados.set(new Map());
+    this.erroContatos.set(null);
+    this.contatos.set(null);
+    try {
+      this.contatos.set(await firstValueFrom(this.api.whatsappContatos()));
+    } catch (e) {
+      this.erroContatos.set(this.mensagem(e));
+    }
+  }
+
+  fecharImportar() {
+    this.importando.set(false);
+  }
+
+  alternar(c: ContatoWhatsapp) {
+    if (this.jaNaLista().has(c.telefone_e164)) return;
+    const novo = new Map(this.selecionados());
+    if (novo.has(c.telefone_e164)) novo.delete(c.telefone_e164);
+    else novo.set(c.telefone_e164, c.nome ?? '');
+    this.selecionados.set(novo);
+  }
+
+  nomear(telefone: string, nome: string) {
+    const novo = new Map(this.selecionados());
+    novo.set(telefone, nome);
+    this.selecionados.set(novo);
+  }
+
+  async importar() {
+    const escolhidos = [...this.selecionados()].map(([telefone, nome]) => ({ telefone, nome: nome.trim() }));
+    if (!escolhidos.length || this.faltaNome()) return;
+    await this.executar(async () => {
+      const r = await firstValueFrom(this.api.adicionarConvidados(this.id(), escolhidos));
+      const partes = [`${r.adicionados} ${r.adicionados === 1 ? 'convidado adicionado' : 'convidados adicionados'}`];
+      if (r.ja_na_lista) partes.push(`${r.ja_na_lista} já estava${r.ja_na_lista === 1 ? '' : 'm'} na lista`);
+      if (r.invalidos.length) partes.push(`número não aceito: ${r.invalidos.join(', ')}`);
+      this.aviso.set(
+        partes.join(', ') +
+          (this.evento()?.status === 'ATIVO' ? '. Convites na fila de envio.' : '. Os convites saem quando você ativar o evento.'),
+      );
+      this.importando.set(false);
     });
   }
 

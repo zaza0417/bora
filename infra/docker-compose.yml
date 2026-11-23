@@ -48,6 +48,8 @@ services:
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: postgresql
       DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_SENHA}@evolution-db:5432/evolution
+      # Guarda os contatos sincronizados (tela "Escolher dos contatos do WhatsApp")
+      DATABASE_SAVE_DATA_CONTACTS: "true"
       CACHE_REDIS_ENABLED: "true"
       CACHE_REDIS_URI: redis://evolution-redis:6379/1
       CACHE_LOCAL_ENABLED: "false"
