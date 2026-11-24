@@ -11,6 +11,7 @@ import unicodedata
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from enum import StrEnum
 
 MESES = {
     "jan": 1, "fev": 2, "mar": 3, "abr": 4, "mai": 5, "jun": 6,
@@ -105,6 +106,31 @@ def nome_aparece(nome: str, texto: str) -> bool:
     )
 
 
+# Palavras que aparecem em todo comprovante de PIX/transferência dos bancos brasileiros
+PALAVRAS_COMPROVANTE = (
+    "pix",
+    "comprovante",
+    "transferencia",
+    "transacao",
+    "autenticacao",
+    "pagamento efetuado",
+    "pagamento realizado",
+)
+
+
+def parece_comprovante(texto: str, valores: list[Decimal], e2e: str | None) -> bool:
+    """É um comprovante (e não uma foto, figurinha ou print de conversa)?
+
+    Precisa ter um valor em reais e o ID do PIX ou uma palavra típica de comprovante.
+    """
+    if not valores:
+        return False
+    if e2e:
+        return True
+    t = normalizar(texto)
+    return any(p in t for p in PALAVRAS_COMPROVANTE)
+
+
 # ---------------------------------------------------------------------------
 # Conferência
 # ---------------------------------------------------------------------------
@@ -119,6 +145,7 @@ class Analise:
     datas_encontradas: list[str] = field(default_factory=list)
     e2e: str | None = None
     texto_legivel: bool = True
+    parece_comprovante: bool = True  # tem cara de comprovante de PIX (não é foto/meme)
 
     @property
     def tudo_confere(self) -> bool:
@@ -128,6 +155,7 @@ class Analise:
         """
         return (
             self.texto_legivel
+            and self.parece_comprovante
             and self.valor_confere
             and self.data_confere
             and self.recebedor_confere is not False
@@ -151,12 +179,15 @@ def analisar(
     e2e_ja_usados: set[str] | None = None,
 ) -> Analise:
     if not texto or len(normalizar(texto)) < 15:
-        return Analise(False, False, None, False, False, texto_legivel=False)
+        return Analise(
+            False, False, None, False, False, texto_legivel=False, parece_comprovante=False
+        )
 
     valores = extrair_valores(texto)
     datas = extrair_datas(texto)
     e2e = extrair_e2e(texto)
     return Analise(
+        parece_comprovante=parece_comprovante(texto, valores, e2e),
         valor_confere=valor_esperado.quantize(Decimal("0.01")) in valores,
         data_confere=any(desde <= d <= hoje for d in datas),
         recebedor_confere=nome_aparece(nome_recebedor, texto) if nome_recebedor else None,
@@ -166,3 +197,29 @@ def analisar(
         datas_encontradas=[d.isoformat() for d in datas],
         e2e=e2e,
     )
+
+
+# ---------------------------------------------------------------------------
+# O que fazer com uma imagem recebida de um convidado pendente
+# ---------------------------------------------------------------------------
+class Destino(StrEnum):
+    IGNORAR = "IGNORAR"  # não é comprovante, ou já temos o comprovante certo
+    CONFERIR = "CONFERIR"  # parece comprovante mas não bate: fila do organizador, sem aviso
+    RECEBIDO = "RECEBIDO"  # é o comprovante deste pagamento: fila (ou baixa) + aviso
+
+
+def destino(analise: Analise | None, *, ja_tem_o_certo: bool) -> Destino:
+    """Decide antes de avisar o convidado, para não responder a cada foto que ele mandar.
+
+    `analise` None = não deu para baixar a mídia (o organizador confere no próprio WhatsApp).
+    `ja_tem_o_certo` = já há um comprovante com o valor certo esperando ou registrado.
+    """
+    if analise is None:
+        return Destino.IGNORAR if ja_tem_o_certo else Destino.CONFERIR
+    if not analise.texto_legivel or not analise.parece_comprovante:
+        return Destino.IGNORAR
+    if ja_tem_o_certo:
+        return Destino.IGNORAR
+    if analise.valor_confere and not analise.repetido:
+        return Destino.RECEBIDO
+    return Destino.CONFERIR

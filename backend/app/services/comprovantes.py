@@ -2,11 +2,14 @@
 
 Quando chega uma imagem/PDF de um número que é convidado de um evento ATIVO do dono da
 instância e ainda não está confirmado:
-  1. baixa a mídia na Evolution e guarda no bucket privado "comprovantes";
-  2. lê o texto (PDF direto ou OCR) e confere valor, data, recebedor, convidado e ID E2E;
-  3. se o organizador ligou a baixa automática e tudo confere → confirma a presença;
+  1. baixa a mídia na Evolution e lê o texto (PDF direto ou OCR);
+  2. decide (domain/comprovante.destino): foto/meme/print → ignora, sem guardar nem
+     responder; parece comprovante mas o valor não bate → fila do organizador, sem
+     responder; é o comprovante deste pagamento → segue;
+  3. guarda no bucket privado "comprovantes";
+  4. se o organizador ligou a baixa automática e tudo confere → confirma a presença;
      senão → entra na fila "Comprovantes para conferir" do painel;
-  4. responde ao convidado pelo WhatsApp.
+  5. responde ao convidado pelo WhatsApp uma vez só (recebido, ou presença confirmada).
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.domain.comprovante import analisar
+from app.domain.comprovante import Destino, analisar, destino
 from app.domain.estados import TransicaoInvalida
 from app.domain.mensagens import TipoMensagem
 from app.domain.telefone import TelefoneInvalido, normalizar_telefone
@@ -64,6 +67,11 @@ async def processar_comprovante(sessao: AsyncSession, ev: EventoMensagemRecebida
                 text(f"""
                     select c.id, c.nome, c.evento_id, c.convidado_em,
                            c.valor_devido - {SQL_VALOR_PAGO} as falta_pagar,
+                           c.comprovante_recebido_em is not null
+                             and coalesce((c.comprovante_analise->>'valor_confere')::boolean, false)
+                             and not coalesce((c.comprovante_analise->>'repetido')::boolean, false)
+                             as ja_tem_o_certo,
+                           c.comprovante_path as comprovante_anterior,
                            o.pix_nome, o.baixa_automatica
                       from convidado c
                       join evento e on e.id = c.evento_id
@@ -91,8 +99,21 @@ async def processar_comprovante(sessao: AsyncSession, ev: EventoMensagemRecebida
     if ja.first():
         return "duplicado"
 
-    midia = await _baixar_e_guardar(ev, cand["evento_id"], cand["id"])
+    # Primeiro lê; só depois decide se é o comprovante e se responde ao convidado
+    midia = await _baixar(ev)
     analise = await _conferir(sessao, cand, midia)
+    para_onde = destino(analise, ja_tem_o_certo=cand["ja_tem_o_certo"])
+    if para_onde is Destino.IGNORAR:
+        log.info(
+            "imagem de %s ignorada (%s)",
+            cand["nome"],
+            "já há comprovante certo" if cand["ja_tem_o_certo"] else "não é comprovante",
+        )
+        return "ignorado"
+
+    if midia:
+        midia.caminho = await _guardar(midia, ev, cand["evento_id"], cand["id"])
+    await _apagar_anterior(sessao, cand, midia.caminho if midia else None)
 
     await sessao.execute(
         text("""
@@ -128,14 +149,17 @@ async def processar_comprovante(sessao: AsyncSession, ev: EventoMensagemRecebida
             log.info("comprovante de %s conferido e confirmado automaticamente", cand["nome"])
             return "confirmado_automaticamente"
 
-    await enfileirar_mensagem(sessao, cand["id"], TipoMensagem.COMPROVANTE_RECEBIDO)
+    # Avisa o convidado só quando é mesmo o comprovante deste pagamento (uma vez)
+    if para_onde is Destino.RECEBIDO:
+        await enfileirar_mensagem(sessao, cand["id"], TipoMensagem.COMPROVANTE_RECEBIDO)
     await sessao.commit()
     log.info(
-        "comprovante recebido de %s (tudo confere: %s)",
+        "comprovante de %s: %s (tudo confere: %s)",
         cand["nome"],
+        para_onde.value,
         analise.tudo_confere if analise else "sem leitura",
     )
-    return "registrado"
+    return "registrado" if para_onde is Destino.RECEBIDO else "para_conferir"
 
 
 async def _conferir(sessao: AsyncSession, cand, midia: Midia | None):
@@ -165,11 +189,9 @@ async def _conferir(sessao: AsyncSession, cand, midia: Midia | None):
     )
 
 
-async def _baixar_e_guardar(
-    ev: EventoMensagemRecebida, evento_id: UUID, convidado_id: UUID
-) -> Midia | None:
-    """Baixa da Evolution e sobe no Storage. Sem mídia, o organizador ainda vê o
-    comprovante no próprio WhatsApp e confere à mão."""
+async def _baixar(ev: EventoMensagemRecebida) -> Midia | None:
+    """Baixa da Evolution. Sem mídia, o organizador ainda vê o comprovante no próprio
+    WhatsApp e confere à mão."""
     try:
         dados = await EvolutionClient.from_settings().baixar_midia(ev.instancia, ev.chave_mensagem)
         conteudo = base64.b64decode(dados["base64"])
@@ -177,14 +199,40 @@ async def _baixar_e_guardar(
     except (ErroEvolution, KeyError, ValueError) as e:
         log.warning("não foi possível baixar a mídia do comprovante: %s", e)
         return None
+    return Midia(conteudo, tipo, None)
 
-    caminho = f"{evento_id}/{convidado_id}/{ev.id_mensagem}.{EXTENSOES.get(tipo, 'bin')}"
+
+async def _guardar(
+    midia: Midia, ev: EventoMensagemRecebida, evento_id: UUID, convidado_id: UUID
+) -> str | None:
+    """Sobe no bucket privado só o que vai para a fila (fotos e memes não são guardados)."""
+    caminho = f"{evento_id}/{convidado_id}/{ev.id_mensagem}.{EXTENSOES.get(midia.mimetype, 'bin')}"
     try:
-        await storage.enviar(storage.BUCKET_COMPROVANTES, caminho, conteudo, tipo)
+        await storage.enviar(storage.BUCKET_COMPROVANTES, caminho, midia.conteudo, midia.mimetype)
     except storage.ErroStorage as e:
         log.warning("não foi possível guardar o comprovante: %s", e)
-        caminho = None
-    return Midia(conteudo, tipo, caminho)
+        return None
+    return caminho
+
+
+async def _apagar_anterior(sessao: AsyncSession, cand, caminho_novo: str | None) -> None:
+    """O comprovante novo substitui o anterior (que não batia): não deixa arquivo órfão.
+
+    Nunca apaga um comprovante que já virou pagamento (ex.: pagou, depois aumentou os
+    acompanhantes e agora manda o da diferença).
+    """
+    anterior = cand["comprovante_anterior"]
+    if not anterior or anterior == caminho_novo or cand["ja_tem_o_certo"]:
+        return
+    usado = await sessao.execute(
+        text("select 1 from pagamento where comprovante_path = :p"), {"p": anterior}
+    )
+    if usado.first():
+        return
+    try:
+        await storage.apagar(storage.BUCKET_COMPROVANTES, anterior)
+    except storage.ErroStorage as e:
+        log.warning("não foi possível apagar o comprovante anterior: %s", e)
 
 
 def _json(d: dict) -> str:

@@ -35,6 +35,14 @@ async def enviar(bucket: str, caminho: str, conteudo: bytes, content_type: str) 
     return caminho
 
 
+async def apagar(bucket: str, caminho: str) -> None:
+    base, cab = _base()
+    async with httpx.AsyncClient(timeout=15) as cli:
+        r = await cli.delete(f"{base}/object/{bucket}/{caminho}", headers=cab)
+    if r.status_code >= 400 and r.status_code != 404:
+        raise ErroStorage(f"remoção falhou: {r.status_code} {r.text[:300]}")
+
+
 async def url_assinada(bucket: str, caminho: str, segundos: int = 3600) -> str:
     base, cab = _base()
     async with httpx.AsyncClient(timeout=15) as cli:
