@@ -36,10 +36,11 @@ services:
     depends_on: [evolution]
 
   evolution:
-    # Versão fixa: a 2.3.7 (build de 06/05/2026) que está em produção e foi testada
-    # (convite, comprovante, contatos). A tag :v2.3.7 do Docker Hub é outra build, mais
-    # antiga, por isso o digest. Para atualizar, teste a nova versão antes e troque aqui.
-    image: evoapicloud/evolution-api@sha256:966625532d9076a2381e973a271307d107e6f070450de3abeeea8bd18be07252
+    # Versão fixa pelo digest (a tag pode ser republicada). 2.3.8: confirma as stanzas
+    # <status> (stories) que o WhatsApp passou a mandar; na 2.3.7 elas ficavam sem
+    # confirmação e o servidor derrubava a conexão a cada ~50 min (evolution-api #2778).
+    # Anterior, para voltar se preciso: 2.3.7 = sha256:966625532d9076a2381e973a271307d107e6f070450de3abeeea8bd18be07252
+    image: evoapicloud/evolution-api:v2.3.8@sha256:b2712c06caf333c7a7ade3bbbdd25f70c32abb74537ec75f786c24c99675deb3
     restart: unless-stopped
     expose: ["8080"]
     # Para rodar localmente (fora do compose), exponha em outra porta para não
