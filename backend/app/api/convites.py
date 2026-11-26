@@ -80,6 +80,7 @@ class ConviteOut(BaseModel):
     mapa_url: str | None
     capa_url: str | None
     convite_imagem_url: str | None
+    tema: str = "FESTA"  # FESTA | NOITE | CASAMENTO | INFANTIL
     tem_contribuicao: bool
     colaboracoes: list[ColaboracaoOut]
     atracoes: list[ItemSimples]
@@ -125,7 +126,7 @@ _SQL_CONVIDADO = text(f"""
            c.comprovante_recebido_em,
            e.id as evento_id, e.organizador_id, e.nome as evento_nome, e.descricao, e.data_hora,
            e.local_nome, e.endereco, e.mapa_url, e.capa_url, e.convite_imagem_url,
-           e.tem_contribuicao,
+           e.tema, e.tem_contribuicao,
            e.max_acompanhantes, e.prazo_pagamento, e.taxa_mp, e.status as evento_status
       from convidado c
       join evento e on e.id = c.evento_id
@@ -203,6 +204,7 @@ async def ver_convite(token: str, sessao: Sessao) -> ConviteOut:
         mapa_url=c["mapa_url"],
         capa_url=c["capa_url"],
         convite_imagem_url=c["convite_imagem_url"],
+        tema=c["tema"],
         tem_contribuicao=c["tem_contribuicao"],
         colaboracoes=[ColaboracaoOut(**r) for r in colabs],
         atracoes=[ItemSimples(**r) for r in atracoes],

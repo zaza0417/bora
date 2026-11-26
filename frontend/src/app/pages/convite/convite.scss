@@ -2,6 +2,108 @@
   display: block;
   min-height: 100dvh;
   background: var(--fundo);
+  color: var(--tinta);
+
+  /* peso do título no tema (Festa e Infantil: bem pesado) */
+  --peso-display: 800;
+}
+
+/* ---------- temas ----------
+   Cada tema redefine as variáveis do site dentro do convite. Festa é o visual padrão
+   (segue claro/escuro do aparelho); os outros têm cara própria em qualquer aparelho.
+   As mesmas cores estão nas miniaturas (evento-form.scss) e no cartaz do link (api/og.ts). */
+:host([data-tema='NOITE']) {
+  --fundo: #0e0e10;
+  --superficie: #1a1917;
+  --tinta: #f5f1e6;
+  --tinta-2: #a39a86;
+  --tinta-3: #8a826f;
+  --linha: #34302a;
+  --linha-suave: #26231f;
+  --marca: #c9a95c;
+  --marca-hover: #d6b86c;
+  --sobre-marca: #1a1608;
+  --marca-texto: #d9bd78;
+  --marca-suave: #2b2416;
+  --ok: #8fcf9b;
+  --sombra-elevada: 0 0 0 1px rgb(255 255 255 / 5%), 0 12px 40px rgb(0 0 0 / 55%);
+  --peso-display: 500;
+  color-scheme: dark;
+
+  /* cartaz escuro com letra clara; o dourado fica para a data e os botões */
+  .cartaz:not(.com-arte) {
+    background: var(--fundo);
+    color: var(--tinta);
+    border-bottom: 0.5px solid var(--linha);
+
+    .quando {
+      color: var(--marca);
+    }
+  }
+}
+
+:host([data-tema='CASAMENTO']) {
+  --fundo: #f6f1e9;
+  --superficie: #fffdf8;
+  --tinta: #3b3329;
+  --tinta-2: #7a6d5c;
+  --tinta-3: #9a8d7a;
+  --linha: #e2d7c5;
+  --linha-suave: #ece3d4;
+  --marca: #3b3329;
+  --marca-hover: #2c261e;
+  --sobre-marca: #f6f1e9;
+  --marca-texto: #8a6a3f;
+  --marca-suave: #efe5d4;
+  --ok: #4f7a52;
+  --sombra-elevada: 0 0 0 1px #e6dccb, 0 12px 40px rgb(59 51 41 / 8%);
+  --fonte-display: 'Fraunces', Georgia, serif;
+  --peso-display: 400;
+  color-scheme: light;
+
+  /* cartaz creme, centralizado */
+  .cartaz:not(.com-arte) {
+    background: var(--fundo);
+    color: var(--tinta);
+
+    .cartaz-texto {
+      text-align: center;
+    }
+
+    .quando {
+      color: var(--marca-texto);
+    }
+  }
+
+  .nome-evento {
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+}
+
+:host([data-tema='INFANTIL']) {
+  --fundo: #eef6ff;
+  --superficie: #ffffff;
+  --tinta: #123a73;
+  --tinta-2: #4d6a93;
+  --tinta-3: #7189ab;
+  --linha: #d6e4f5;
+  --linha-suave: #e6eef9;
+  --marca: #e8344f;
+  --marca-hover: #d42a44;
+  --sobre-marca: #ffffff;
+  --marca-texto: #c92a43;
+  --marca-suave: #ffe4e8;
+  --raio-grupo: 24px;
+  --raio-midia: 32px;
+  --sombra-elevada: 0 1px 2px rgb(18 58 115 / 6%), 0 12px 40px rgb(18 58 115 / 10%);
+  color-scheme: light;
+
+  .cartaz:not(.com-arte) {
+    background: #2f7bf0;
+    color: #fff;
+    border-radius: 0 0 40px 40px;
+  }
 }
 
 /* ---------- cartaz ---------- */
@@ -55,7 +157,7 @@
 .nome-evento {
   margin-top: 10px;
   font-size: clamp(3rem, 13vw, 6.5rem);
-  font-weight: 800;
+  font-weight: var(--peso-display);
   letter-spacing: -0.055em;
   line-height: 0.88;
   overflow-wrap: anywhere;
@@ -99,7 +201,7 @@
 
   h2 {
     font-size: 2rem;
-    font-weight: 800;
+    font-weight: var(--peso-display);
     letter-spacing: -0.04em;
   }
 }
@@ -152,7 +254,7 @@
 .vou {
   font-family: var(--fonte-display);
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: var(--peso-display);
   letter-spacing: -0.02em;
 }
 
@@ -384,7 +486,7 @@
 .destaque {
   font-family: var(--fonte-display);
   font-size: 1.6rem;
-  font-weight: 700;
+  font-weight: var(--peso-display);
   letter-spacing: -0.03em;
   line-height: 1.1;
 }

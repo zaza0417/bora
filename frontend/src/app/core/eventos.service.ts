@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
+import type { Tema } from '../shared/temas';
 
 export type StatusEvento = 'RASCUNHO' | 'ATIVO' | 'ENCERRADO' | 'CANCELADO';
 export type TipoColaboracao = 'FIXO' | 'RATEIO';
@@ -20,6 +21,7 @@ export interface Evento {
   prazo_manual: boolean;
   /** Textos personalizados por tipo de mensagem; tipo ausente = texto padrão. */
   mensagens: Record<string, string>;
+  tema: Tema;
   status?: StatusEvento;
 }
 
@@ -72,7 +74,7 @@ export interface EventoCompleto {
 
 const CAMPOS_EVENTO =
   'id, nome, descricao, local_nome, endereco, mapa_url, data_hora, convite_imagem_url, ' +
-  'tem_contribuicao, max_acompanhantes, prazo_pagamento, prazo_manual, mensagens, status';
+  'tem_contribuicao, max_acompanhantes, prazo_pagamento, prazo_manual, mensagens, tema, status';
 
 const CAMPOS_PRESENTE =
   'id, nome, descricao, link_loja, imagem_url, modo, valor_referencia, ordem, reservado_por, pagamento(status)';

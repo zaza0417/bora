@@ -35,6 +35,31 @@
         }
       </section>
 
+      <!-- Visual do convite -->
+      <section class="grupo">
+        <h2 class="grupo-titulo">Visual do convite</h2>
+        <div class="temas" role="radiogroup" aria-label="Visual do convite">
+          @for (t of temas; track t.id) {
+            <button type="button" role="radio" class="tema" [attr.data-tema]="t.id"
+              [class.escolhido]="evento.tema === t.id" [attr.aria-checked]="evento.tema === t.id"
+              (click)="evento.tema = t.id">
+              <span class="tema-mini" aria-hidden="true">
+                <span class="mini-cartaz">
+                  <span class="mini-titulo">{{ evento.nome.trim() || 'Sua festa' }}</span>
+                </span>
+                <span class="mini-cartao">
+                  <span class="mini-pergunta">{{ t.pergunta }}</span>
+                  <span class="mini-botoes"><span class="mini-vou"></span><span class="mini-nao"></span></span>
+                </span>
+              </span>
+              <span class="tema-nome">{{ t.nome }}</span>
+              <span class="tema-desc">{{ t.descricao }}</span>
+            </button>
+          }
+        </div>
+        <p class="grupo-rodape">Muda a página do convidado e o cartão que aparece quando o link chega no WhatsApp.</p>
+      </section>
+
       <!-- O evento -->
       <section class="grupo">
         <h2 class="grupo-titulo">O evento</h2>

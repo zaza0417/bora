@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Topo } from '../../shared/topo';
 import { ApiService } from '../../core/api.service';
+import { TEMAS } from '../../shared/temas';
 import {
   AtracaoForm,
   ColaboracaoForm,
@@ -87,7 +88,9 @@ export class EventoForm implements OnInit {
     prazo_pagamento: null,
     prazo_manual: false,
     mensagens: {},
+    tema: 'FESTA',
   };
+  readonly temas = TEMAS;
   data = '';
   hora = '19:00';
   readonly arteUrl = signal<string | null>(null);
@@ -127,6 +130,7 @@ export class EventoForm implements OnInit {
       this.cardapio.set(dados.cardapio);
       this.presentes.set(dados.presentes);
       this.evento.mensagens ??= {};
+      this.evento.tema ??= 'FESTA';
     } catch (e) {
       this.erro.set((e as Error).message);
     } finally {

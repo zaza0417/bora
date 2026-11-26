@@ -49,7 +49,7 @@
       <img class="arte" [src]="c.convite_imagem_url || c.capa_url" [alt]="'Arte do convite: ' + c.evento_nome" />
     }
     <div class="cartaz-texto">
-      <p class="saudacao">{{ primeiroNome() }}, você foi convidado para</p>
+      <p class="saudacao">{{ primeiroNome() }}, chegou seu convite para</p>
       <h1 class="nome-evento">{{ c.evento_nome }}</h1>
       <p class="quando">{{ c.data_hora | date: "EEEE, d 'de' MMMM 'às' HH:mm" }}</p>
     </div>
@@ -189,7 +189,7 @@
         }
 
         @default {
-          <h2>{{ c.status === 'RECUSOU' ? 'Mudou de ideia?' : 'E aí, bora?' }}</h2>
+          <h2>{{ c.status === 'RECUSOU' ? 'Mudou de ideia?' : tema().pergunta }}</h2>
           @if (c.status === 'RECUSOU') {
             <p class="sub">Você tinha respondido que não ia. Ainda dá tempo de entrar na lista.</p>
           }
@@ -212,7 +212,7 @@
           }
 
           <div class="decisao">
-            <button class="botao-grande vou" (click)="responder(true)" [disabled]="enviando()">Vou!</button>
+            <button class="botao-grande vou" (click)="responder(true)" [disabled]="enviando()">{{ tema().vou }}</button>
             <button class="botao-grande botao-secundario" (click)="responder(false)" [disabled]="enviando()">Não vou</button>
           </div>
         }

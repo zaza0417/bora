@@ -1,5 +1,8 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist/frontend/browser",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/c/:token", "destination": "/api/convite?token=:token" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }

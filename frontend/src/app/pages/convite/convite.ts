@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { ApiService, Convite, Pagamento, PixPresente, PresenteConvite } from '../../core/api.service';
 import { Logo } from '../../shared/logo';
+import { infoTema } from '../../shared/temas';
 
 /** Duração presumida da festa no calendário (o evento só tem horário de início). */
 const DURACAO_HORAS = 4;
@@ -24,6 +25,8 @@ function textoIcs(s: string) {
   imports: [FormsModule, DatePipe, CurrencyPipe, NgTemplateOutlet, Logo],
   styleUrl: './convite.scss',
   templateUrl: './convite.html',
+  // As cores e fontes de cada tema ficam em convite.scss, por [data-tema]
+  host: { '[attr.data-tema]': 'convite()?.tema ?? "FESTA"' },
 })
 export class ConvitePage implements OnInit {
   /** Vem da rota (withComponentInputBinding). */
@@ -49,6 +52,7 @@ export class ConvitePage implements OnInit {
   readonly pixPresenteCopiado = signal(false);
   valorPresente: number | null = null;
 
+  readonly tema = computed(() => infoTema(this.convite()?.tema));
   readonly primeiroNome = computed(() => this.convite()?.convidado_nome.split(' ')[0] ?? '');
   /** Confirmado mudando a quantidade de acompanhantes. */
   readonly mudandoAcompanhantes = signal(false);

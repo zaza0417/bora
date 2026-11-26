@@ -22,6 +22,7 @@ export interface Convite {
   mapa_url: string | null;
   capa_url: string | null;
   convite_imagem_url: string | null;
+  tema: 'FESTA' | 'NOITE' | 'CASAMENTO' | 'INFANTIL';
   tem_contribuicao: boolean;
   colaboracoes: { descricao: string; valor_por_pessoa: string }[];
   atracoes: ItemSimples[];

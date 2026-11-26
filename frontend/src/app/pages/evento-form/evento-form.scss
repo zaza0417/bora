@@ -254,6 +254,178 @@ button.linha-acao {
   align-self: flex-start;
 }
 
+/* ---------- visual do convite ----------
+   As miniaturas usam as mesmas cores dos temas (convite.scss / api/og.ts) */
+.temas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 560px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tema {
+  --c-fundo: #fbfbfd;
+  --c-cartaz: #ffd23f;
+  --c-sobre-cartaz: #1d1d1f;
+  --c-cartao: #fff;
+  --c-tinta: #1d1d1f;
+  --c-vou: #ffd23f;
+  --c-nao: #ececf0;
+  --c-fonte: 'Bricolage Grotesque', system-ui, sans-serif;
+  --c-peso: 800;
+  --c-raio: 10px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 8px 10px;
+  border-radius: var(--raio-grupo);
+  background: var(--superficie);
+  color: var(--tinta);
+  text-align: left;
+  font-weight: 400;
+  box-shadow: inset 0 0 0 1px var(--linha-suave);
+
+  &:hover {
+    background: var(--superficie);
+    box-shadow: inset 0 0 0 1px var(--linha);
+  }
+
+  &.escolhido {
+    box-shadow: inset 0 0 0 2px var(--tinta);
+  }
+
+  &[data-tema='NOITE'] {
+    --c-fundo: #0e0e10;
+    --c-cartaz: #0e0e10;
+    --c-sobre-cartaz: #f5f1e6;
+    --c-cartao: #1a1917;
+    --c-tinta: #f5f1e6;
+    --c-vou: #c9a95c;
+    --c-nao: #2a2826;
+    --c-peso: 500;
+  }
+
+  &[data-tema='CASAMENTO'] {
+    --c-fundo: #f6f1e9;
+    --c-cartaz: #f6f1e9;
+    --c-sobre-cartaz: #3b3329;
+    --c-cartao: #fffdf8;
+    --c-tinta: #3b3329;
+    --c-vou: #3b3329;
+    --c-nao: #e9dfcf;
+    --c-fonte: 'Fraunces', Georgia, serif;
+    --c-peso: 400;
+  }
+
+  &[data-tema='INFANTIL'] {
+    --c-fundo: #eef6ff;
+    --c-cartaz: #2f7bf0;
+    --c-sobre-cartaz: #fff;
+    --c-cartao: #fff;
+    --c-tinta: #123a73;
+    --c-vou: #e8344f;
+    --c-nao: #e6eef9;
+    --c-raio: 14px;
+  }
+}
+
+.tema-mini {
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--c-fundo);
+  margin-bottom: 6px;
+}
+
+.mini-cartaz {
+  flex: 1.1;
+  display: flex;
+  align-items: flex-end;
+  padding: 8px 8px 14px;
+  background: var(--c-cartaz);
+  color: var(--c-sobre-cartaz);
+
+  [data-tema='INFANTIL'] & {
+    border-radius: 0 0 14px 14px;
+  }
+
+  [data-tema='CASAMENTO'] & {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+.mini-titulo {
+  font-family: var(--c-fonte);
+  font-weight: var(--c-peso);
+  font-size: 0.95rem;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mini-cartao {
+  margin: -6px 6px 6px;
+  padding: 7px;
+  border-radius: var(--c-raio);
+  background: var(--c-cartao);
+  color: var(--c-tinta);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini-pergunta {
+  font-family: var(--c-fonte);
+  font-weight: var(--c-peso);
+  font-size: 0.62rem;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-botoes {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 4px;
+
+  span {
+    height: 10px;
+    border-radius: 99px;
+  }
+}
+
+.mini-vou {
+  background: var(--c-vou);
+}
+
+.mini-nao {
+  background: var(--c-nao);
+}
+
+.tema-nome {
+  font-weight: 500;
+  font-size: 0.94rem;
+}
+
+.tema-desc {
+  font-size: 0.8rem;
+  color: var(--tinta-2);
+  line-height: 1.25;
+}
+
 /* ---------- presentes ---------- */
 .presente {
   .colab-nome {

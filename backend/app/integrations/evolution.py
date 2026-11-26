@@ -74,7 +74,10 @@ class EvolutionClient:
     async def enviar_texto(self, instancia: str, numero: str, texto: str) -> str | None:
         """Envia texto. `numero` só com dígitos (ex.: 5511987654321). Retorna o id da mensagem."""
         dados = await self._req(
-            "POST", f"/message/sendText/{instancia}", {"number": numero, "text": texto}
+            "POST",
+            f"/message/sendText/{instancia}",
+            # linkPreview: o link do convite vira o cartão com cartaz/arte (frontend/api/convite.ts)
+            {"number": numero, "text": texto, "linkPreview": True},
         )
         return (dados.get("key") or {}).get("id")
 
