@@ -16,6 +16,7 @@ import {
   StatusConvidado,
 } from '../../core/api.service';
 import { Evento, EventosService } from '../../core/eventos.service';
+import { ConfirmacaoService } from '../../shared/confirmacao';
 
 type Filtro = 'TODOS' | StatusConvidado;
 
@@ -93,6 +94,7 @@ export class EventoDetalhe implements OnInit {
 
   private readonly api = inject(ApiService);
   private readonly eventos = inject(EventosService);
+  private readonly confirmacao = inject(ConfirmacaoService);
 
   readonly evento = signal<Evento | null>(null);
   readonly painel = signal<Painel | null>(null);
@@ -202,7 +204,14 @@ export class EventoDetalhe implements OnInit {
   }
 
   async cancelar() {
-    if (!confirm('Cancelar o evento? Todos os convidados que não recusaram serão avisados pelo WhatsApp.')) return;
+    const ok = await this.confirmacao.pedir({
+      titulo: 'Cancelar o evento?',
+      mensagem: 'Todos os convidados que não recusaram recebem um aviso no WhatsApp. Não dá para desfazer.',
+      confirmar: 'Cancelar evento',
+      voltar: 'Manter',
+      perigo: true,
+    });
+    if (!ok) return;
     await this.executar(async () => {
       const r = await firstValueFrom(this.api.cancelarEvento(this.id()));
       this.aviso.set(`Evento cancelado. ${r.avisados} convidado(s) serão avisados.`);
@@ -280,7 +289,13 @@ export class EventoDetalhe implements OnInit {
   }
 
   async remover(c: ConvidadoLinha) {
-    if (!confirm(`Remover ${c.nome} da lista?`)) return;
+    const ok = await this.confirmacao.pedir({
+      titulo: `Remover ${c.nome}?`,
+      mensagem: 'A pessoa sai da lista e o link do convite dela para de funcionar.',
+      confirmar: 'Remover',
+      perigo: true,
+    });
+    if (!ok) return;
     await this.executar(async () => {
       await firstValueFrom(this.api.removerConvidado(this.id(), c.id));
       this.aviso.set(`${c.nome} removido(a).`);
@@ -304,7 +319,13 @@ export class EventoDetalhe implements OnInit {
   }
 
   async recusarComprovante(r: ComprovanteLinha) {
-    if (!confirm(`Descartar o comprovante de ${r.nome}? A pessoa continua como pendente.`)) return;
+    const ok = await this.confirmacao.pedir({
+      titulo: `Descartar o comprovante de ${r.nome}?`,
+      mensagem: 'Ele sai da lista para conferir e a pessoa continua devendo.',
+      confirmar: 'Descartar',
+      perigo: true,
+    });
+    if (!ok) return;
     await this.executar(async () => {
       await firstValueFrom(this.api.recusarComprovante(this.id(), r.convidado_id));
       this.aviso.set(`Comprovante de ${r.nome} descartado.`);
@@ -352,7 +373,15 @@ export class EventoDetalhe implements OnInit {
 
   // --- presentes ---
   async decidirPresente(pg: { id: string; convidado_nome: string; valor: string; presente: string }, confirmar: boolean) {
-    if (!confirmar && !confirm(`Descartar o aviso de ${pg.convidado_nome}? Use quando o dinheiro não caiu na sua conta.`)) return;
+    if (!confirmar) {
+      const ok = await this.confirmacao.pedir({
+        titulo: `O dinheiro de ${pg.convidado_nome} não caiu?`,
+        mensagem: `O aviso de ${moeda(pg.valor)} para ${pg.presente} sai da lista e não conta no total.`,
+        confirmar: 'Não caiu',
+        perigo: true,
+      });
+      if (!ok) return;
+    }
     await this.executar(async () => {
       await firstValueFrom(this.api.decidirPresente(this.id(), pg.id, confirmar ? 'confirmar' : 'descartar'));
       this.aviso.set(

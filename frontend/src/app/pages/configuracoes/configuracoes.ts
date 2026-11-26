@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ApiService, StatusWhatsapp } from '../../core/api.service';
 import { SupabaseService } from '../../core/supabase.service';
+import { ConfirmacaoService } from '../../shared/confirmacao';
 
 const MOTIVOS_MP: Record<string, string> = {
   autorizacao_cancelada: 'A autorização foi cancelada no Mercado Pago.',
@@ -26,6 +27,7 @@ export class Configuracoes implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly supabase = inject(SupabaseService);
+  private readonly confirmacao = inject(ConfirmacaoService);
 
   readonly mpConectado = signal<boolean | null>(null);
   readonly whatsapp = signal<StatusWhatsapp | null>(null);
@@ -110,7 +112,13 @@ export class Configuracoes implements OnInit {
   }
 
   async desconectarMp() {
-    if (!confirm('Desconectar o Mercado Pago? Eventos com contribuição não poderão gerar PIX.')) return;
+    const ok = await this.confirmacao.pedir({
+      titulo: 'Desconectar o Mercado Pago?',
+      mensagem: 'Eventos com vaquinha deixam de gerar PIX pelo Mercado Pago.',
+      confirmar: 'Desconectar',
+      perigo: true,
+    });
+    if (!ok) return;
     await this.executar(async () => {
       await firstValueFrom(this.api.mpDesconectar());
       this.mpConectado.set(false);
@@ -127,7 +135,13 @@ export class Configuracoes implements OnInit {
   }
 
   async desconectarWhatsapp() {
-    if (!confirm('Desconectar o WhatsApp? Convites e lembretes param de ser enviados.')) return;
+    const ok = await this.confirmacao.pedir({
+      titulo: 'Desconectar o WhatsApp?',
+      mensagem: 'Convites e lembretes param de sair até você conectar de novo.',
+      confirmar: 'Desconectar',
+      perigo: true,
+    });
+    if (!ok) return;
     await this.executar(async () => {
       clearInterval(this.polling);
       await firstValueFrom(this.api.whatsappDesconectar());
